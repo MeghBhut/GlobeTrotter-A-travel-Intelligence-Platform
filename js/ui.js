@@ -1,5 +1,5 @@
 /**
- * GlobeTrotter UI Rendering Controller (Cyanotype Theme Compliant)
+ * GlobeTrotter UI Rendering Controller (Cyanotype Theme & v2 Tasks Compliant)
  */
 
 class GlobeTrotterUI {
@@ -45,13 +45,45 @@ class GlobeTrotterUI {
   }
 
   bindEvents() {
-    // Nav Tab Switches
+    // Navigation Tabs
     document.querySelectorAll('.nav-tab').forEach(tab => {
       tab.addEventListener('click', (e) => {
         const view = e.currentTarget.dataset.view;
-        if (view) this.state.setView(view);
+        if (view) {
+          // Auth Gate for Saved Trips / Profile
+          if (view === 'saved' && !this.state.isAuthenticated()) {
+            this.openAuthModal('login');
+            if (window.GlobeTrotterApp) {
+              window.GlobeTrotterApp.showToast('Please log in to view and manage your trips', 'warning');
+            }
+            return;
+          }
+          this.state.setView(view);
+        }
       });
     });
+
+    // Profile Pill Button Click
+    const profileBtn = document.getElementById('user-profile-btn');
+    if (profileBtn) {
+      profileBtn.addEventListener('click', () => {
+        if (this.state.isAuthenticated()) {
+          this.state.setView('profile');
+        } else {
+          this.openAuthModal('login');
+        }
+      });
+    }
+
+    // Backend Badge Click (Safe binding)
+    const backendBadge = document.getElementById('backend-status-badge');
+    if (backendBadge) {
+      backendBadge.addEventListener('click', () => {
+        if (window.GlobeTrotterApp) {
+          window.GlobeTrotterApp.pingBackend();
+        }
+      });
+    }
 
     // Filters
     const regionFilter = document.getElementById('filter-region');
@@ -83,7 +115,7 @@ class GlobeTrotterUI {
       });
     }
 
-    // Modal Close
+    // City Modal Close
     const modalBackdrop = document.getElementById('city-modal-backdrop');
     if (modalBackdrop) {
       modalBackdrop.addEventListener('click', (e) => {
@@ -92,12 +124,45 @@ class GlobeTrotterUI {
         }
       });
     }
+
+    // Auth Modal Close
+    const authBackdrop = document.getElementById('auth-modal-backdrop');
+    if (authBackdrop) {
+      authBackdrop.addEventListener('click', (e) => {
+        if (e.target === authBackdrop) {
+          this.closeAuthModal();
+        }
+      });
+    }
+
+    // Planner View Toggle (List vs Calendar)
+    const btnListView = document.getElementById('btn-view-list');
+    const btnCalView = document.getElementById('btn-view-calendar');
+    if (btnListView && btnCalView) {
+      btnListView.addEventListener('click', () => this.state.setPlannerViewMode('list'));
+      btnCalView.addEventListener('click', () => this.state.setPlannerViewMode('calendar'));
+    }
   }
 
   handleStateUpdate(state, action, payload) {
     switch (action) {
       case 'VIEW_CHANGED':
-        this.renderView(state.currentView);
+        this.renderView(state.currentView, payload.params);
+        break;
+      case 'PLANNER_VIEW_MODE_CHANGED':
+        this.renderPlanner();
+        break;
+      case 'AUTH_STATE_CHANGED':
+        this.renderProfilePill();
+        this.renderProfileView();
+        this.renderSavedTrips();
+        break;
+      case 'AUTH_MODAL_CHANGED':
+        if (payload.isOpen) {
+          this.renderAuthModal(payload.mode);
+        } else {
+          this.closeAuthModal();
+        }
         break;
       case 'FILTERS_CHANGED':
         this.renderDestinationsGrid();
@@ -110,6 +175,7 @@ class GlobeTrotterUI {
       case 'HOTEL_CHANGED':
       case 'ACTIVITIES_CHANGED':
       case 'DURATION_CHANGED':
+      case 'DATES_CHANGED':
       case 'TRAVELERS_CHANGED':
       case 'TAXES_TOGGLED':
       case 'ALLOWANCES_CHANGED':
@@ -128,7 +194,14 @@ class GlobeTrotterUI {
       case 'SAVED_TRIPS_LOADED':
       case 'TRIP_SAVED':
       case 'TRIP_DELETED':
+      case 'TRIP_UPDATED':
         this.renderSavedTrips();
+        break;
+      case 'PUBLIC_TRIP_LOADED':
+        this.renderPublicTripView(state.publicTrip);
+        break;
+      case 'PUBLIC_TRIP_ERROR':
+        this.renderPublicTripError(payload);
         break;
       case 'COMPARISON_UPDATED':
         this.renderComparison();
@@ -140,17 +213,19 @@ class GlobeTrotterUI {
   }
 
   renderAll() {
+    this.renderProfilePill();
     this.renderDestinationsGrid();
     this.renderPlanner();
     this.renderBudgetSidebar();
     this.renderSavedTrips();
     this.renderComparison();
+    this.renderProfileView();
     this.renderView(this.state.getState().currentView);
     if (window.lucide) window.lucide.createIcons();
   }
 
-  renderView(viewName) {
-    const views = ['explore', 'planner', 'saved', 'comparison'];
+  renderView(viewName, params = {}) {
+    const views = ['explore', 'planner', 'saved', 'comparison', 'profile', 'public'];
     views.forEach(v => {
       const el = document.getElementById(`view-${v}`);
       const tabs = document.querySelectorAll(`.nav-tab[data-view="${v}"]`);
@@ -173,6 +248,238 @@ class GlobeTrotterUI {
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
+
+  // ==================== AUTH & PROFILE UI ====================
+
+  renderProfilePill() {
+    const user = this.state.getState().currentUser;
+    const profileBtn = document.getElementById('user-profile-btn');
+    if (!profileBtn) return;
+
+    if (user && user.name) {
+      const initial = user.name.charAt(0).toUpperCase();
+      profileBtn.innerHTML = `
+        <div class="w-5 h-5 rounded-full bg-[var(--cyan)] text-[var(--surface-2)] font-semibold flex items-center justify-center text-[10px]">
+          ${initial}
+        </div>
+        <span class="hidden md:inline font-medium text-[var(--ink)]">${user.name}</span>
+      `;
+      profileBtn.className = "flex items-center gap-1.5 surface-inset px-2.5 py-1 rounded-[var(--radius-control)] text-xs cursor-pointer hover:border-[var(--cyan)] border border-transparent";
+    } else {
+      profileBtn.innerHTML = `
+        <i data-lucide="user" class="w-3.5 h-3.5 text-[var(--cyan)]"></i>
+        <span class="font-medium text-[var(--cyan)]">Log In</span>
+      `;
+      profileBtn.className = "btn-secondary text-xs py-1 px-2.5";
+    }
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  openAuthModal(mode = 'login') {
+    this.state.openAuthModal(mode);
+  }
+
+  closeAuthModal() {
+    const modal = document.getElementById('auth-modal-backdrop');
+    if (modal) {
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+  }
+
+  renderAuthModal(mode = 'login') {
+    const modalBackdrop = document.getElementById('auth-modal-backdrop');
+    const modalContent = document.getElementById('auth-modal-content');
+    if (!modalBackdrop || !modalContent) return;
+
+    modalContent.innerHTML = `
+      <div class="p-6 sm:p-8 space-y-6">
+        <div class="flex justify-between items-center pb-3 border-b border-[var(--line)]">
+          <div>
+            <p class="eyebrow">Authentication</p>
+            <h3 class="text-xl font-bold text-primary">${mode === 'signup' ? 'Create an Account' : mode === 'forgot' ? 'Reset Password' : 'Log In to GlobeTrotter'}</h3>
+          </div>
+          <button onclick="GlobeTrotterUI.closeAuthModal()" class="theme-toggle" aria-label="Close modal">
+            <i data-lucide="x" class="w-4 h-4"></i>
+          </button>
+        </div>
+
+        <div id="auth-error-alert" class="hidden p-3 rounded-[var(--radius-control)] surface-inset border border-rose-500/50 text-rose-500 text-xs font-medium"></div>
+
+        ${mode === 'login' ? `
+          <form id="form-auth-login" class="space-y-4" onsubmit="event.preventDefault(); GlobeTrotterApp.handleLogin(this);">
+            <div>
+              <label class="block text-dim text-xs mb-1 font-medium">Email Address:</label>
+              <input name="email" type="email" required placeholder="megh@example.com" value="megh@example.com" class="input w-full" />
+            </div>
+            <div>
+              <div class="flex justify-between items-center mb-1">
+                <label class="text-dim text-xs font-medium">Password:</label>
+                <button type="button" onclick="GlobeTrotterUI.renderAuthModal('forgot')" class="text-xs text-[var(--cyan)] hover:underline">Forgot password?</button>
+              </div>
+              <input name="password" type="password" required placeholder="••••••••" value="secret123" class="input w-full" />
+            </div>
+            <button type="submit" class="btn-primary w-full py-2.5 text-sm font-semibold">
+              <i data-lucide="log-in" class="w-4 h-4"></i> Log In
+            </button>
+            <div class="text-center pt-2 text-xs text-dim">
+              Don't have an account yet?
+              <button type="button" onclick="GlobeTrotterUI.renderAuthModal('signup')" class="text-[var(--cyan)] font-semibold hover:underline ml-1">Sign Up</button>
+            </div>
+          </form>
+        ` : mode === 'signup' ? `
+          <form id="form-auth-signup" class="space-y-4" onsubmit="event.preventDefault(); GlobeTrotterApp.handleSignup(this);">
+            <div>
+              <label class="block text-dim text-xs mb-1 font-medium">Full Name:</label>
+              <input name="name" type="text" required placeholder="Megh Sharma" class="input w-full" />
+            </div>
+            <div>
+              <label class="block text-dim text-xs mb-1 font-medium">Email Address:</label>
+              <input name="email" type="email" required placeholder="megh@example.com" class="input w-full" />
+            </div>
+            <div>
+              <label class="block text-dim text-xs mb-1 font-medium">Password:</label>
+              <input name="password" type="password" required minlength="6" placeholder="Choose a secure password" class="input w-full" />
+            </div>
+            <button type="submit" class="btn-primary w-full py-2.5 text-sm font-semibold">
+              <i data-lucide="user-plus" class="w-4 h-4"></i> Create Account
+            </button>
+            <div class="text-center pt-2 text-xs text-dim">
+              Already have an account?
+              <button type="button" onclick="GlobeTrotterUI.renderAuthModal('login')" class="text-[var(--cyan)] font-semibold hover:underline ml-1">Log In</button>
+            </div>
+          </form>
+        ` : `
+          <div class="space-y-4">
+            <p class="text-xs text-dim leading-relaxed">Enter your registered email address and we'll send password recovery instructions.</p>
+            <div>
+              <label class="block text-dim text-xs mb-1 font-medium">Email Address:</label>
+              <input type="email" placeholder="megh@example.com" class="input w-full" />
+            </div>
+            <button type="button" onclick="GlobeTrotterApp.showToast('Password reset link sent to email (Demo)', 'info'); GlobeTrotterUI.renderAuthModal('login');" class="btn-primary w-full py-2.5 text-sm">
+              Send Reset Instructions
+            </button>
+            <div class="text-center pt-2 text-xs">
+              <button type="button" onclick="GlobeTrotterUI.renderAuthModal('login')" class="text-[var(--cyan)] font-semibold hover:underline">Back to Login</button>
+            </div>
+          </div>
+        `}
+      </div>
+    `;
+
+    modalBackdrop.classList.remove('hidden');
+    modalBackdrop.classList.add('flex', 'animate-fade-in');
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  renderProfileView() {
+    const container = document.getElementById('profile-content-container');
+    if (!container) return;
+
+    const user = this.state.getState().currentUser;
+    const savedTrips = this.state.getState().savedTrips;
+
+    if (!user) {
+      container.innerHTML = `
+        <div class="text-center py-16 text-dim col-span-full">
+          <i data-lucide="lock" class="w-12 h-12 mx-auto mb-3 text-dim"></i>
+          <h3 class="text-lg font-bold text-primary">Sign in to view your profile</h3>
+          <p class="text-sm mt-1">Manage your custom trips, saved preferences, and account settings.</p>
+          <button onclick="GlobeTrotterUI.openAuthModal('login')" class="btn-primary mt-4">
+            Log In / Sign Up
+          </button>
+        </div>
+      `;
+      return;
+    }
+
+    const initial = user.name ? user.name.charAt(0).toUpperCase() : 'U';
+
+    container.innerHTML = `
+      <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
+        <!-- User Info Card (4 cols) -->
+        <div class="md:col-span-4 space-y-4">
+          <div class="surface-elevated p-6 text-center">
+            <div class="w-20 h-20 rounded-full bg-[var(--cyan)] text-[var(--surface-2)] text-2xl font-bold flex items-center justify-center mx-auto mb-3 shadow-md">
+              ${initial}
+            </div>
+            <h3 class="text-xl font-bold text-primary">${user.name}</h3>
+            <p class="text-xs text-dim mt-0.5">${user.email}</p>
+            <span class="chip text-[10px] mt-2 active">User ID: #${user.id}</span>
+
+            <div class="grid grid-cols-2 gap-2 mt-6 pt-4 border-t border-[var(--line)] text-left">
+              <div class="surface-inset p-2.5 rounded-[var(--radius-control)]">
+                <span class="text-dim text-[10px] uppercase font-semibold block">My Trips</span>
+                <span class="stat-mono text-base font-bold text-[var(--cyan)]">${savedTrips.length}</span>
+              </div>
+              <div class="surface-inset p-2.5 rounded-[var(--radius-control)]">
+                <span class="text-dim text-[10px] uppercase font-semibold block">Destinations</span>
+                <span class="stat-mono text-base font-bold text-[var(--sun)]">10 Hubs</span>
+              </div>
+            </div>
+
+            <button onclick="GlobeTrotterApp.handleLogout()" class="btn-secondary w-full text-xs mt-6 text-rose-500 hover:border-rose-500">
+              <i data-lucide="log-out" class="w-3.5 h-3.5"></i> Log Out
+            </button>
+          </div>
+        </div>
+
+        <!-- Settings & Preferences (8 cols) -->
+        <div class="md:col-span-8 space-y-4">
+          <div class="surface p-6 space-y-5">
+            <h4 class="text-sm font-bold uppercase tracking-wider text-[var(--cyan)] flex items-center gap-2">
+              <i data-lucide="settings" class="w-4 h-4"></i> User Preferences & Settings
+            </h4>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+              <div>
+                <label class="block text-dim font-medium mb-1">Display Language:</label>
+                <select class="select-control w-full">
+                  <option value="en" selected>English (India / Global)</option>
+                  <option value="hi">हिंदी (Hindi)</option>
+                  <option value="es">Español</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-dim font-medium mb-1">Default Currency:</label>
+                <select id="profile-currency-select" onchange="GlobeTrotterState.setCurrency(this.value)" class="select-control w-full">
+                  <option value="INR" ${this.state.state.currency === 'INR' ? 'selected' : ''}>INR (₹) - Indian Rupee</option>
+                  <option value="USD" ${this.state.state.currency === 'USD' ? 'selected' : ''}>USD ($) - US Dollar</option>
+                  <option value="EUR" ${this.state.state.currency === 'EUR' ? 'selected' : ''}>EUR (€) - Euro</option>
+                  <option value="GBP" ${this.state.state.currency === 'GBP' ? 'selected' : ''}>GBP (£) - British Pound</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="pt-4 border-t border-[var(--line)] flex justify-between items-center">
+              <div>
+                <span class="font-bold text-xs text-primary block">Color Theme</span>
+                <span class="text-dim text-[11px]">Toggle Cyanotype Light / Dark modes</span>
+              </div>
+              <button onclick="window.CyanotypeTheme.toggle()" class="btn-secondary text-xs">
+                <i data-lucide="sun" class="w-3.5 h-3.5"></i> Switch Mode
+              </button>
+            </div>
+
+            <!-- Danger Zone -->
+            <div class="pt-4 border-t border-[var(--line)]">
+              <span class="eyebrow text-rose-500 block mb-1">Danger Zone</span>
+              <div class="flex justify-between items-center">
+                <span class="text-xs text-dim">Delete account and all stored itineraries</span>
+                <button onclick="alert('Account deletion request placeholder (v2)');" class="btn-secondary text-xs text-rose-500 hover:border-rose-500">
+                  Delete Account
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  // ==================== EXPLORE & PLANNER UI ====================
 
   renderDestinationsGrid() {
     const grid = document.getElementById('destinations-grid');
@@ -216,7 +523,6 @@ class GlobeTrotterUI {
 
       return `
         <article class="destination-card">
-          <!-- Image Band -->
           <div class="relative h-48 sm:h-52 overflow-hidden">
             <img src="${city.heroImage}" alt="${city.name}" class="w-full h-full object-cover hover:scale-105 transition-transform duration-500 ease-out" onerror="this.outerHTML='<div class=\\'postcard-placeholder\\'><span class=\\'sun\\'></span></div>'" />
             <div class="absolute inset-0 bg-gradient-to-t from-[var(--surface)] via-transparent to-transparent"></div>
@@ -236,7 +542,6 @@ class GlobeTrotterUI {
             ` : ''}
           </div>
 
-          <!-- Card Body -->
           <div class="p-5 flex-1 flex flex-col justify-between">
             <div>
               <p class="eyebrow mb-1">${city.state}, INDIA</p>
@@ -282,6 +587,7 @@ class GlobeTrotterUI {
   renderPlanner() {
     const currentCity = this.state.getCurrentCity();
     const tripPlan = this.state.getState().tripPlan;
+    const viewMode = this.state.getState().plannerViewMode;
     const currency = this.state.getState().currency;
 
     const cityHotels = HOTELS_DATA.filter(h => h.city_id === currentCity.id);
@@ -426,10 +732,24 @@ class GlobeTrotterUI {
       }).join('');
     }
 
-    this.renderDayScheduler();
+    // Update List vs Calendar toggle button styles
+    const btnListView = document.getElementById('btn-view-list');
+    const btnCalView = document.getElementById('btn-view-calendar');
+    if (btnListView && btnCalView) {
+      if (viewMode === 'calendar') {
+        btnCalView.classList.add('active');
+        btnListView.classList.remove('active');
+      } else {
+        btnListView.classList.add('active');
+        btnCalView.classList.remove('active');
+      }
+    }
+
+    // Render Schedule (List or Calendar)
+    this.renderDayScheduler(viewMode);
   }
 
-  renderDayScheduler() {
+  renderDayScheduler(viewMode = 'list') {
     const container = document.getElementById('planner-schedule-container');
     if (!container) return;
 
@@ -440,6 +760,42 @@ class GlobeTrotterUI {
     const cityActs = ACTIVITIES_DATA.filter(a => a.city_id === currentCity.id);
     const selectedActs = cityActs.filter(a => state.tripPlan.activityIds.includes(a.id));
 
+    if (viewMode === 'calendar') {
+      // Timeline / Calendar Mode
+      let calHTML = `
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+      `;
+      for (let day = 1; day <= nights; day++) {
+        const daySlots = schedule[day] || { morning: null, afternoon: null, evening: null };
+        calHTML += `
+          <div class="surface-inset p-3.5 rounded-[var(--radius-card)] border border-[var(--line)] space-y-2">
+            <div class="flex justify-between items-center border-b border-[var(--line)] pb-1.5">
+              <span class="eyebrow">Day ${day}</span>
+              <span class="stat-mono text-[10px] text-dim">${new Date(Date.now() + (day - 1)*86400000).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}</span>
+            </div>
+            <div class="space-y-1.5 text-xs">
+              <div class="p-1.5 rounded-[var(--radius-control)] bg-[var(--surface)]">
+                <span class="text-[9px] uppercase font-bold text-[var(--cyan)] block">AM:</span>
+                <span class="font-medium text-primary text-[11px] truncate block">${daySlots.morning ? (cityActs.find(a => a.id === parseInt(daySlots.morning))?.name || 'Assigned') : '— Free —'}</span>
+              </div>
+              <div class="p-1.5 rounded-[var(--radius-control)] bg-[var(--surface)]">
+                <span class="text-[9px] uppercase font-bold text-[var(--cyan)] block">AFT:</span>
+                <span class="font-medium text-primary text-[11px] truncate block">${daySlots.afternoon ? (cityActs.find(a => a.id === parseInt(daySlots.afternoon))?.name || 'Assigned') : '— Free —'}</span>
+              </div>
+              <div class="p-1.5 rounded-[var(--radius-control)] bg-[var(--surface)]">
+                <span class="text-[9px] uppercase font-bold text-[var(--cyan)] block">EVE:</span>
+                <span class="font-medium text-primary text-[11px] truncate block">${daySlots.evening ? (cityActs.find(a => a.id === parseInt(daySlots.evening))?.name || 'Assigned') : '— Free —'}</span>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+      calHTML += `</div>`;
+      container.innerHTML = calHTML;
+      return;
+    }
+
+    // List Mode
     let html = '';
     for (let day = 1; day <= nights; day++) {
       const daySlots = schedule[day] || { morning: null, afternoon: null, evening: null };
@@ -561,12 +917,28 @@ class GlobeTrotterUI {
     }
   }
 
+  // ==================== SAVED TRIPS & PUBLIC VIEW ====================
+
   renderSavedTrips() {
     const container = document.getElementById('saved-trips-container');
     if (!container) return;
 
     const saved = this.state.getState().savedTrips;
     const currency = this.state.getState().currency;
+
+    if (!this.state.isAuthenticated()) {
+      container.innerHTML = `
+        <div class="text-center py-16 text-dim col-span-full">
+          <i data-lucide="lock" class="w-12 h-12 mx-auto mb-3 text-dim"></i>
+          <h3 class="text-lg font-bold text-primary">Log in to view saved trips</h3>
+          <p class="text-sm mt-1">Access your saved itineraries stored securely in your account.</p>
+          <button onclick="GlobeTrotterUI.openAuthModal('login')" class="btn-primary mt-4">
+            Log In / Sign Up
+          </button>
+        </div>
+      `;
+      return;
+    }
 
     if (saved.length === 0) {
       container.innerHTML = `
@@ -585,15 +957,14 @@ class GlobeTrotterUI {
     container.innerHTML = saved.map(trip => {
       const stop = trip.stops && trip.stops[0] ? trip.stops[0] : null;
       const city = stop && stop.city ? stop.city : CITIES_DATA[0];
-      const hotel = stop && stop.hotel ? stop.hotel : null;
-      const actCount = stop && stop.activities ? stop.activities.length : 0;
+      const actCount = stop && stop.activities ? stop.activities.length : (trip.destination_count || 0);
 
       return `
         <div class="surface-elevated p-5 flex flex-col justify-between">
           <div>
             <div class="flex justify-between items-start mb-2">
               <div>
-                <p class="eyebrow">${city.name}, ${city.state || ''}</p>
+                <p class="eyebrow">${city.name || 'Trip'}, ${city.state || ''}</p>
                 <h4 class="text-xl font-bold text-primary mt-0.5">${trip.name}</h4>
               </div>
               <button onclick="GlobeTrotterApp.deleteTrip(${trip.id})" class="text-dim hover:text-rose-500 p-1 transition cursor-pointer" title="Delete Trip">
@@ -601,23 +972,27 @@ class GlobeTrotterUI {
               </button>
             </div>
             
-            <p class="text-xs text-dim mb-4">
-              ${trip.start_date || '2026-09-01'} to ${trip.end_date || '2026-09-04'} • ${trip.num_people || 2} Travelers
+            <p class="text-xs text-dim mb-3">
+              ${trip.start_date || '2026-09-01'} to ${trip.end_date || '2026-09-04'} • ${trip.destination_count || (trip.stops ? trip.stops.length : 1)} Stops
             </p>
 
-            <div class="p-3 rounded-[var(--radius-control)] surface-inset mb-4 text-xs space-y-1">
+            <div class="p-3 rounded-[var(--radius-control)] surface-inset mb-4 text-xs space-y-2">
               <div class="flex justify-between text-dim">
-                <span>Hotel:</span>
-                <span class="font-medium text-primary">${hotel ? hotel.name : 'Custom Stay'}</span>
+                <span>Visibility:</span>
+                <label class="flex items-center gap-1.5 cursor-pointer">
+                  <input type="checkbox" ${trip.is_public ? 'checked' : ''} onchange="GlobeTrotterApp.handleTogglePublic(${trip.id}, this.checked)" class="custom-checkbox" />
+                  <span class="font-medium ${trip.is_public ? 'text-[var(--cyan)] font-bold' : 'text-dim'}">${trip.is_public ? 'Public' : 'Private'}</span>
+                </label>
               </div>
-              <div class="flex justify-between text-dim">
-                <span>Experiences:</span>
-                <span class="font-medium text-primary">${actCount} booked</span>
-              </div>
-              <div class="flex justify-between text-dim border-t border-[var(--line)] pt-1 mt-1 font-bold">
-                <span>Share Slug:</span>
-                <span class="stat-mono text-[10px] text-[var(--cyan)]">${trip.share_slug || 'n/a'}</span>
-              </div>
+
+              ${trip.is_public && trip.share_slug ? `
+                <div class="flex justify-between items-center text-dim border-t border-[var(--line)] pt-1.5">
+                  <span>Public Link:</span>
+                  <button onclick="GlobeTrotterApp.openPublicTrip('${trip.share_slug}')" class="text-[var(--cyan)] font-semibold hover:underline flex items-center gap-1">
+                    <i data-lucide="external-link" class="w-3 h-3"></i> View Shared
+                  </button>
+                </div>
+              ` : ''}
             </div>
           </div>
 
@@ -633,6 +1008,105 @@ class GlobeTrotterUI {
       `;
     }).join('');
   }
+
+  renderPublicTripView(trip) {
+    const container = document.getElementById('public-trip-container');
+    if (!container) return;
+
+    if (!trip) {
+      container.innerHTML = `<p class="text-center text-dim py-16">Loading public itinerary...</p>`;
+      return;
+    }
+
+    const stops = trip.stops || [];
+
+    container.innerHTML = `
+      <div class="max-w-4xl mx-auto space-y-6">
+        <!-- Postcard Banner -->
+        <div class="surface-elevated overflow-hidden">
+          <div class="postcard-placeholder h-48 sm:h-56">
+            <span class="sun"></span>
+          </div>
+          <div class="p-6 sm:p-8 space-y-3">
+            <div class="flex justify-between items-start">
+              <div>
+                <span class="chip text-xs active">Public Itinerary</span>
+                <h2 class="text-3xl sm:text-4xl font-extrabold text-primary mt-1">${trip.name}</h2>
+                <p class="text-dim text-sm mt-1">${trip.description || 'Shared Indian Travel Itinerary'}</p>
+              </div>
+              <div class="text-right">
+                <span class="stat-mono text-xs text-dim block">${trip.start_date || ''} — ${trip.end_date || ''}</span>
+                <span class="chip text-[11px] mt-1">${stops.length} Stops</span>
+              </div>
+            </div>
+
+            <!-- Social Share Bar -->
+            <div class="pt-4 border-t border-[var(--line)] flex flex-wrap gap-2 items-center justify-between">
+              <div class="flex gap-2">
+                <button onclick="GlobeTrotterApp.copyPublicLink('${trip.share_slug}')" class="btn-secondary text-xs">
+                  <i data-lucide="link" class="w-3.5 h-3.5"></i> Copy Public Link
+                </button>
+                <a href="https://api.whatsapp.com/send?text=${encodeURIComponent('Check out this trip to India: ' + window.location.href)}" target="_blank" class="btn-secondary text-xs">
+                  <i data-lucide="message-circle" class="w-3.5 h-3.5 text-emerald-500"></i> WhatsApp
+                </a>
+              </div>
+              <button onclick="GlobeTrotterApp.copyTripToMyAccount(${trip.id})" class="btn-primary text-xs">
+                <i data-lucide="copy" class="w-3.5 h-3.5"></i> Copy to My Account
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Stops & Activities -->
+        <div class="space-y-4">
+          <h3 class="text-lg font-bold text-primary flex items-center gap-2">
+            <i data-lucide="map-pin" class="w-4 h-4 text-[var(--cyan)]"></i> Trip Stops & Included Activities
+          </h3>
+
+          ${stops.map((stop, idx) => `
+            <div class="surface p-5 space-y-3">
+              <div class="flex justify-between items-center pb-2 border-b border-[var(--line)]">
+                <div>
+                  <span class="eyebrow">Stop #${idx + 1}</span>
+                  <h4 class="text-lg font-bold text-primary">${stop.city?.name}, ${stop.city?.state}</h4>
+                </div>
+                <span class="stat-mono text-xs text-dim">${stop.start_date || ''} to ${stop.end_date || ''}</span>
+              </div>
+
+              <div class="space-y-1.5">
+                <span class="text-xs text-dim font-medium uppercase">Experiences:</span>
+                ${stop.activities && stop.activities.length ? stop.activities.map(a => `
+                  <div class="surface-inset p-2.5 rounded-[var(--radius-control)] flex justify-between items-center text-xs">
+                    <span class="font-medium text-primary">${a.name}</span>
+                    <span class="price font-medium">₹${(a.price_per_person * a.num_people).toLocaleString()} (${a.num_people} Pax)</span>
+                  </div>
+                `).join('') : '<p class="text-xs text-dim italic">No specific activities attached to this stop</p>'}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  renderPublicTripError(msg) {
+    const container = document.getElementById('public-trip-container');
+    if (!container) return;
+    container.innerHTML = `
+      <div class="text-center py-16 text-dim max-w-md mx-auto">
+        <i data-lucide="alert-circle" class="w-12 h-12 mx-auto mb-3 text-rose-500"></i>
+        <h3 class="text-lg font-bold text-primary">Public Trip Not Found</h3>
+        <p class="text-sm mt-1">${msg || 'The shared itinerary link may be private or invalid.'}</p>
+        <button onclick="GlobeTrotterState.setView('explore')" class="btn-primary mt-4">
+          Browse Destinations
+        </button>
+      </div>
+    `;
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  // ==================== COMPARISON & MODALS ====================
 
   renderComparison() {
     const container = document.getElementById('comparison-container');

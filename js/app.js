@@ -1,5 +1,5 @@
 /**
- * GlobeTrotter Application Controller (Cyanotype Theme & API Contract v1)
+ * GlobeTrotter Application Controller (v2 Tasks & API Contract Compliant)
  */
 
 class GlobeTrotterApp {
@@ -12,25 +12,34 @@ class GlobeTrotterApp {
   }
 
   init() {
-    console.log('🌏 GlobeTrotter Cyanotype Theme & API Contract v1 Client Ready');
+    console.log('🌏 GlobeTrotter App v2 Ready');
     this.ui.init();
     this.setupGlobalShortcuts();
     this.setupPlannerFormListeners();
+    this.handleRouteFromHash();
   }
 
   setupGlobalShortcuts() {
     window.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         this.ui.closeCityModal();
+        this.ui.closeAuthModal();
       }
     });
 
     window.addEventListener('hashchange', () => {
-      const hash = window.location.hash.replace('#', '');
-      if (['explore', 'planner', 'saved', 'comparison'].includes(hash)) {
-        this.state.setView(hash);
-      }
+      this.handleRouteFromHash();
     });
+  }
+
+  handleRouteFromHash() {
+    const hash = window.location.hash.replace('#', '');
+    if (hash.startsWith('public/')) {
+      const slug = hash.replace('public/', '');
+      this.state.setView('public', { slug });
+    } else if (['explore', 'planner', 'saved', 'comparison', 'profile'].includes(hash)) {
+      this.state.setView(hash);
+    }
   }
 
   setupPlannerFormListeners() {
@@ -82,10 +91,16 @@ class GlobeTrotterApp {
     if (foodInput) foodInput.addEventListener('input', updateAllowances);
     if (transportInput) transportInput.addEventListener('input', updateAllowances);
 
-    // Save Trip Button (Calls API POST /api/trips and /api/trips/{id}/stops)
+    // Save Trip Button
     const saveTripBtn = document.getElementById('btn-save-trip');
     if (saveTripBtn) {
       saveTripBtn.addEventListener('click', async () => {
+        if (!this.state.isAuthenticated()) {
+          this.ui.openAuthModal('login');
+          this.showToast('Please log in to save trips to your account', 'warning');
+          return;
+        }
+
         const currentTitle = this.state.state.tripPlan.title;
         const customTitle = prompt("Enter a title for this trip:", currentTitle);
         if (customTitle !== null) {
@@ -122,6 +137,55 @@ class GlobeTrotterApp {
     }
   }
 
+  // ==================== AUTH HANDLERS ====================
+
+  async handleLogin(form) {
+    const email = form.email.value;
+    const password = form.password.value;
+    const errorAlert = document.getElementById('auth-error-alert');
+
+    try {
+      if (errorAlert) errorAlert.classList.add('hidden');
+      const res = await this.state.login(email, password);
+      this.showToast(`Welcome back, ${res.user.name}!`, 'success');
+    } catch (err) {
+      if (errorAlert) {
+        errorAlert.textContent = err.message || 'Login failed';
+        errorAlert.classList.remove('hidden');
+      } else {
+        this.showToast(err.message || 'Login failed', 'warning');
+      }
+    }
+  }
+
+  async handleSignup(form) {
+    const name = form.name.value;
+    const email = form.email.value;
+    const password = form.password.value;
+    const errorAlert = document.getElementById('auth-error-alert');
+
+    try {
+      if (errorAlert) errorAlert.classList.add('hidden');
+      const res = await this.state.signup(name, email, password);
+      this.showToast(`Account created! Welcome, ${res.user.name}`, 'success');
+    } catch (err) {
+      if (errorAlert) {
+        errorAlert.textContent = err.message || 'Signup failed';
+        errorAlert.classList.remove('hidden');
+      } else {
+        this.showToast(err.message || 'Signup failed', 'warning');
+      }
+    }
+  }
+
+  handleLogout() {
+    this.state.logout();
+    this.state.setView('explore');
+    this.showToast('You have been logged out', 'info');
+  }
+
+  // ==================== TRIP ACTIONS ====================
+
   startPlanning(cityId) {
     this.ui.closeCityModal();
     this.state.setCity(cityId, true);
@@ -139,10 +203,55 @@ class GlobeTrotterApp {
 
   async deleteTrip(tripId) {
     if (confirm('Are you sure you want to delete this trip?')) {
-      await this.state.deleteSavedTrip(tripId);
-      this.showToast('Trip deleted (DELETE /api/trips/:id)', 'info');
+      try {
+        await this.state.deleteSavedTrip(tripId);
+        this.showToast('Trip deleted (DELETE /api/trips/:id)', 'info');
+      } catch (e) {
+        this.showToast(`Error deleting trip: ${e.message}`, 'warning');
+      }
     }
   }
+
+  async handleTogglePublic(tripId, isPublic) {
+    try {
+      const updated = await this.state.toggleTripPublic(tripId, isPublic);
+      this.showToast(`Trip marked ${isPublic ? 'Public (share link created)' : 'Private'}`, 'info');
+    } catch (e) {
+      this.showToast(`Error updating trip visibility: ${e.message}`, 'warning');
+    }
+  }
+
+  openPublicTrip(slug) {
+    window.location.hash = `public/${slug}`;
+  }
+
+  copyPublicLink(slug) {
+    const url = window.location.origin + window.location.pathname + '#public/' + slug;
+    navigator.clipboard.writeText(url).then(() => {
+      this.showToast('Public trip URL copied to clipboard!', 'success');
+    });
+  }
+
+  async copyTripToMyAccount(tripId) {
+    if (!this.state.isAuthenticated()) {
+      this.ui.openAuthModal('login');
+      this.showToast('Please log in to copy this trip to your account', 'warning');
+      return;
+    }
+
+    try {
+      const currentPublic = this.state.state.publicTrip;
+      if (currentPublic) {
+        const trip = await this.state.saveCurrentTrip(`Copy of ${currentPublic.name}`);
+        this.showToast('Trip copied to your saved trips!', 'success');
+        this.state.setView('saved');
+      }
+    } catch (e) {
+      this.showToast(`Error copying trip: ${e.message}`, 'warning');
+    }
+  }
+
+  // ==================== BACKEND CONNECTION PING ====================
 
   async pingBackend() {
     this.showToast('Testing connection to http://localhost:8000...', 'info');
@@ -150,6 +259,10 @@ class GlobeTrotterApp {
     this.ui.renderBackendBadge(isLive);
     if (isLive) {
       this.showToast('Connected to live backend at http://localhost:8000!', 'success');
+      // Refresh current user if token exists
+      if (this.state.isAuthenticated()) {
+        await this.state.initUser();
+      }
     } else {
       this.showToast('Backend offline. Operating smoothly in mock mode with contract v1 data.', 'warning');
     }

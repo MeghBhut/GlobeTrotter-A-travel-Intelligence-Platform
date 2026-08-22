@@ -1,6 +1,6 @@
 /**
- * GlobeTrotter State Management Module (Updated for API Contract v1)
- * Bridges reactive frontend UI with GlobeTrotterAPI client.
+ * GlobeTrotter State Management Module (v2 Update)
+ * Supports User Authentication, Multi-Stop Itineraries, Calendar Views, Public Sharing, and Settings.
  */
 
 class GlobeTrotterState {
@@ -9,10 +9,26 @@ class GlobeTrotterState {
 
     // Core application state
     this.state = {
-      currentView: 'explore', // 'explore' | 'planner' | 'saved' | 'comparison'
-      selectedCityId: 1,      // 1 = Mumbai (numeric ID as per API Contract)
+      currentView: 'explore', // 'explore' | 'planner' | 'saved' | 'comparison' | 'profile' | 'public'
+      plannerViewMode: 'list', // 'list' | 'calendar'
+      selectedCityId: 1,
       activeModalCityId: null,
       
+      // Auth & Profile
+      currentUser: this.api.currentUser,
+      isAuthModalOpen: false,
+      authModalMode: 'login', // 'login' | 'signup' | 'forgot'
+      
+      // Public Shared Trip
+      publicTrip: null,
+      publicTripSlug: null,
+
+      // User Preferences
+      preferences: {
+        language: 'en',
+        currency: 'INR'
+      },
+
       // Filters
       filters: {
         region: 'all',
@@ -25,20 +41,20 @@ class GlobeTrotterState {
       // Currency
       currency: 'INR',
 
-      // User Profile
-      currentUser: this.api.currentUser,
-      isLiveBackend: false,
-
-      // Active Trip Plan
+      // Active Trip Plan (Customizer & Builder)
       tripPlan: {
         id: null,
         title: "Mumbai Explorer Getaway",
+        description: "3-day cultural and coastal tour",
         cityId: 1,
         hotelId: 1001,
         activityIds: [101, 102, 103, 108],
+        start_date: new Date().toISOString().split('T')[0],
+        end_date: new Date(Date.now() + 3 * 86400000).toISOString().split('T')[0],
         nights: 3,
         adults: 2,
         children: 0,
+        is_public: false,
         includeTaxes: true,
         dailyFoodBudgetPerPerson: 1000,
         dailyLocalTransport: 600,
@@ -47,17 +63,29 @@ class GlobeTrotterState {
           1: { morning: 101, afternoon: 103, evening: 102 },
           2: { morning: 108, afternoon: null, evening: null },
           3: { morning: null, afternoon: null, evening: null }
-        }
+        },
+        // Multi-stop support
+        stops: []
       },
 
       // Comparison list (numeric IDs)
       comparisonCityIds: [1, 3],
 
       // Saved trips from API
-      savedTrips: []
+      savedTrips: [],
+      backendBudget: null
     };
 
     this.subscribers = [];
+    this.initUser();
+  }
+
+  async initUser() {
+    if (this.api.token) {
+      const user = await this.api.getMe();
+      this.state.currentUser = user;
+      this.notify('AUTH_STATE_CHANGED', user);
+    }
     this.loadSavedTrips();
   }
 
@@ -87,11 +115,64 @@ class GlobeTrotterState {
     return CITIES_DATA.find(c => c.id === this.state.activeModalCityId);
   }
 
-  // Actions
-  setView(viewName) {
-    this.state.currentView = viewName;
-    this.notify('VIEW_CHANGED', viewName);
+  isAuthenticated() {
+    return this.api.isAuthenticated();
   }
+
+  // ==================== AUTH ACTIONS ====================
+
+  openAuthModal(mode = 'login') {
+    this.state.authModalMode = mode;
+    this.state.isAuthModalOpen = true;
+    this.notify('AUTH_MODAL_CHANGED', { isOpen: true, mode });
+  }
+
+  closeAuthModal() {
+    this.state.isAuthModalOpen = false;
+    this.notify('AUTH_MODAL_CHANGED', { isOpen: false, mode: this.state.authModalMode });
+  }
+
+  async login(email, password) {
+    const res = await this.api.login(email, password);
+    this.state.currentUser = res.user;
+    this.closeAuthModal();
+    this.notify('AUTH_STATE_CHANGED', res.user);
+    await this.loadSavedTrips();
+    return res;
+  }
+
+  async signup(name, email, password) {
+    const res = await this.api.signup(name, email, password);
+    this.state.currentUser = res.user;
+    this.closeAuthModal();
+    this.notify('AUTH_STATE_CHANGED', res.user);
+    await this.loadSavedTrips();
+    return res;
+  }
+
+  logout() {
+    this.api.logout();
+    this.state.currentUser = null;
+    this.state.savedTrips = [];
+    this.notify('AUTH_STATE_CHANGED', null);
+  }
+
+  // ==================== NAVIGATION & VIEWS ====================
+
+  setView(viewName, params = {}) {
+    this.state.currentView = viewName;
+    if (viewName === 'public' && params.slug) {
+      this.loadPublicTrip(params.slug);
+    }
+    this.notify('VIEW_CHANGED', { view: viewName, params });
+  }
+
+  setPlannerViewMode(mode) {
+    this.state.plannerViewMode = mode;
+    this.notify('PLANNER_VIEW_MODE_CHANGED', mode);
+  }
+
+  // ==================== DESTINATION & TRIP BUILDER ====================
 
   setCity(cityId, applyPreset = true) {
     const numCityId = parseInt(cityId);
@@ -145,8 +226,21 @@ class GlobeTrotterState {
   setTripDuration(nights) {
     const val = Math.max(1, Math.min(14, parseInt(nights) || 1));
     this.state.tripPlan.nights = val;
+    const start = new Date(this.state.tripPlan.start_date || Date.now());
+    this.state.tripPlan.end_date = new Date(start.getTime() + val * 86400000).toISOString().split('T')[0];
     this.adjustScheduleForDuration(val);
     this.notify('DURATION_CHANGED', val);
+  }
+
+  setTripDates(start_date, end_date) {
+    this.state.tripPlan.start_date = start_date;
+    this.state.tripPlan.end_date = end_date;
+    if (start_date && end_date) {
+      const diff = Math.max(1, Math.round((new Date(end_date) - new Date(start_date)) / 86400000));
+      this.state.tripPlan.nights = diff;
+      this.adjustScheduleForDuration(diff);
+    }
+    this.notify('DATES_CHANGED', { start_date, end_date });
   }
 
   setTravelers(adults, children = 0) {
@@ -158,6 +252,7 @@ class GlobeTrotterState {
   setCurrency(currCode) {
     if (CURRENCIES[currCode]) {
       this.state.currency = currCode;
+      this.state.preferences.currency = currCode;
       this.notify('CURRENCY_CHANGED', currCode);
     }
   }
@@ -269,7 +364,8 @@ class GlobeTrotterState {
     this.notify('SCHEDULE_UPDATED', this.state.tripPlan.daySchedule);
   }
 
-  // Saved Trips (Sync with API)
+  // ==================== TRIPS API SYNC ====================
+
   async loadSavedTrips() {
     try {
       this.state.savedTrips = await this.api.getTrips();
@@ -282,37 +378,38 @@ class GlobeTrotterState {
   async saveCurrentTrip(customName = null) {
     const currentCity = this.getCurrentCity();
     const currentHotel = HOTELS_DATA.find(h => h.id === this.state.tripPlan.hotelId);
-    const startDate = new Date().toISOString().split('T')[0];
-    const endDate = new Date(Date.now() + this.state.tripPlan.nights * 86400000).toISOString().split('T')[0];
+    const startDate = this.state.tripPlan.start_date || new Date().toISOString().split('T')[0];
+    const endDate = this.state.tripPlan.end_date || new Date(Date.now() + this.state.tripPlan.nights * 86400000).toISOString().split('T')[0];
+    const numPeople = this.state.tripPlan.adults + this.state.tripPlan.children;
 
     const tripPayload = {
       name: customName || this.state.tripPlan.title || `${currentCity.name} Tour`,
-      description: `${this.state.tripPlan.nights} Nights itinerary in ${currentCity.name}, ${currentCity.state}`,
+      description: this.state.tripPlan.description || `${this.state.tripPlan.nights} nights in ${currentCity.name}`,
       start_date: startDate,
       end_date: endDate,
-      num_people: this.state.tripPlan.adults + this.state.tripPlan.children,
-      is_public: false
+      num_people: numPeople,
+      is_public: this.state.tripPlan.is_public || false
     };
 
-    // 1. Create Trip via API
+    // 1. Create Trip
     const createdTrip = await this.api.createTrip(tripPayload);
 
-    // 2. Add Stop with Hotel
+    // 2. Add Primary Stop
     const stop = await this.api.addStop(createdTrip.id, {
       city_id: currentCity.id,
       start_date: startDate,
-      end_date: endDate,
-      hotel_id: currentHotel ? currentHotel.id : null
+      end_date: endDate
     });
 
     // 3. Add Activities
     for (const actId of this.state.tripPlan.activityIds) {
       await this.api.addStopActivity(stop.id, {
         activity_id: actId,
-        num_people: tripPayload.num_people
+        num_people: numPeople
       });
     }
 
+    this.state.tripPlan.id = createdTrip.id;
     await this.loadSavedTrips();
     this.notify('TRIP_SAVED', createdTrip);
     return createdTrip;
@@ -325,26 +422,40 @@ class GlobeTrotterState {
 
       const stop = trip.stops && trip.stops[0] ? trip.stops[0] : null;
       const cityId = stop && stop.city ? stop.city.id : 1;
-      const hotelId = stop && stop.hotel ? stop.hotel.id : (HOTELS_DATA.find(h => h.city_id === cityId)?.id || 1001);
+      const hotelId = HOTELS_DATA.find(h => h.city_id === cityId)?.id || 1001;
       const actIds = stop && stop.activities ? stop.activities.map(a => a.activity_id) : [];
 
       this.state.tripPlan = {
         id: trip.id,
         title: trip.name,
+        description: trip.description,
         cityId: cityId,
         hotelId: hotelId,
         activityIds: actIds.length ? actIds : [101, 102],
-        nights: stop && stop.start_date && stop.end_date ? Math.max(1, Math.round((new Date(stop.end_date) - new Date(stop.start_date)) / 86400000)) : 3,
-        adults: trip.num_people || 2,
+        start_date: trip.start_date || new Date().toISOString().split('T')[0],
+        end_date: trip.end_date || new Date(Date.now() + 3*86400000).toISOString().split('T')[0],
+        nights: trip.start_date && trip.end_date ? Math.max(1, Math.round((new Date(trip.end_date) - new Date(trip.start_date)) / 86400000)) : 3,
+        adults: 2,
         children: 0,
+        is_public: trip.is_public,
+        share_slug: trip.share_slug,
         includeTaxes: true,
         dailyFoodBudgetPerPerson: 1000,
         dailyLocalTransport: 600,
-        daySchedule: {}
+        daySchedule: {},
+        stops: trip.stops || []
       };
 
       this.state.selectedCityId = cityId;
       this.regenerateSchedule();
+
+      // Fetch backend budget
+      try {
+        this.state.backendBudget = await this.api.getTripBudget(trip.id);
+      } catch (be) {
+        console.warn('Backend budget fetch fallback');
+      }
+
       this.notify('TRIP_LOADED', trip);
       return true;
     } catch (e) {
@@ -353,10 +464,28 @@ class GlobeTrotterState {
     }
   }
 
+  async toggleTripPublic(tripId, isPublic) {
+    const updated = await this.api.updateTrip(tripId, { is_public: isPublic });
+    await this.loadSavedTrips();
+    this.notify('TRIP_UPDATED', updated);
+    return updated;
+  }
+
   async deleteSavedTrip(tripId) {
     await this.api.deleteTrip(tripId);
     await this.loadSavedTrips();
     this.notify('TRIP_DELETED', tripId);
+  }
+
+  async loadPublicTrip(slug) {
+    try {
+      this.state.publicTripSlug = slug;
+      this.state.publicTrip = await this.api.getPublicTrip(slug);
+      this.notify('PUBLIC_TRIP_LOADED', this.state.publicTrip);
+    } catch (e) {
+      this.state.publicTrip = null;
+      this.notify('PUBLIC_TRIP_ERROR', e.message);
+    }
   }
 
   toggleComparisonCity(cityId) {
