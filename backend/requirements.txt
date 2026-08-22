@@ -1,0 +1,7 @@
+# Kept dependency-light so it installs with prebuilt wheels on any recent
+# Python (including 3.14) — no Rust/C compilation required.
+# Password hashing (pbkdf2) and JWT (hmac) use the Python standard library.
+fastapi
+uvicorn
+sqlalchemy
+pydantic[email]

@@ -1,0 +1,13 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+env/
+
+# SQLite database (regenerated + reseeded on startup)
+*.db
+
+# IDE
+.vscode/
+.idea/
