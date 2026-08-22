@@ -32,6 +32,9 @@ class GlobeTrotterAPI {
           start_date: "2026-09-01",
           end_date: "2026-09-07",
           is_public: true,
+          visibility: "public",
+          status: "upcoming",
+          owner: { id: 1, name: "Demo Traveler" },
           share_slug: "golden-triangle-789a",
           cover_photo_url: null,
           destination_count: 2,
@@ -253,9 +256,10 @@ class GlobeTrotterAPI {
 
   // ==================== 3. TRIPS ====================
 
-  async getTrips() {
+  async getTrips(status = '') {
     if (this.isLiveBackend && this.token) {
-      const res = await fetch(`${this.BASE_URL}/api/trips`, { headers: this.getAuthHeaders() });
+      const query = status ? `?status=${encodeURIComponent(status)}` : '';
+      const res = await fetch(`${this.BASE_URL}/api/trips${query}`, { headers: this.getAuthHeaders() });
       if (res.ok) return await res.json();
       if (res.status === 401) {
         this.logout();
@@ -264,7 +268,14 @@ class GlobeTrotterAPI {
     }
 
     const mockTrips = JSON.parse(localStorage.getItem(this.MOCK_TRIPS_KEY) || '[]');
-    return mockTrips;
+    return status ? mockTrips.filter(t => (t.status || this.computeMockTripStatus(t)) === status) : mockTrips;
+  }
+
+  computeMockTripStatus(trip) {
+    const today = new Date().toISOString().split('T')[0];
+    if (!trip.start_date || trip.start_date > today) return "upcoming";
+    if (trip.end_date && trip.end_date < today) return "completed";
+    return "ongoing";
   }
 
   async getTrip(tripId) {
@@ -291,7 +302,9 @@ class GlobeTrotterAPI {
           name: tripData.name,
           description: tripData.description || "",
           start_date: tripData.start_date || null,
-          end_date: tripData.end_date || null
+          end_date: tripData.end_date || null,
+          daily_meal_estimate: tripData.daily_meal_estimate || 0,
+          visibility: tripData.visibility || (tripData.is_public ? "public" : "private")
         })
       });
       const data = await res.json();
@@ -307,10 +320,15 @@ class GlobeTrotterAPI {
       start_date: tripData.start_date || new Date().toISOString().split('T')[0],
       end_date: tripData.end_date || new Date(Date.now() + 3*86400000).toISOString().split('T')[0],
       is_public: tripData.is_public || false,
-      share_slug: 'trip-' + Math.random().toString(36).substring(2, 8),
+      visibility: tripData.visibility || (tripData.is_public ? "public" : "private"),
+      status: "upcoming",
+      owner: this.currentUser ? { id: this.currentUser.id, name: this.currentUser.name } : { id: 1, name: "Demo Traveler" },
+      daily_meal_estimate: tripData.daily_meal_estimate || 0,
+      share_slug: (tripData.visibility === "public" || tripData.is_public) ? 'trip-' + Math.random().toString(36).substring(2, 8) : null,
       cover_photo_url: null,
       destination_count: 0,
-      stops: []
+      stops: [],
+      legs: []
     };
 
     mockTrips.unshift(newTrip);
@@ -335,7 +353,10 @@ class GlobeTrotterAPI {
     const tripIndex = mockTrips.findIndex(t => t.id === numId);
     if (tripIndex === -1) throw new Error('Trip not found');
 
-    if (updateData.is_public && !mockTrips[tripIndex].share_slug) {
+    if (updateData.visibility) {
+      updateData.is_public = updateData.visibility === "public";
+    }
+    if ((updateData.is_public || updateData.visibility === "public") && !mockTrips[tripIndex].share_slug) {
       mockTrips[tripIndex].share_slug = 'trip-' + Math.random().toString(36).substring(2, 8);
     }
 
@@ -397,6 +418,7 @@ class GlobeTrotterAPI {
       order_index: trip.stops ? trip.stops.length : 0,
       hotel: stopData.hotel_id ? HOTELS_DATA.find(h => h.id === parseInt(stopData.hotel_id)) || null : null,
       activities: []
+      , hotels: []
     };
 
     if (!trip.stops) trip.stops = [];
@@ -527,6 +549,75 @@ class GlobeTrotterAPI {
     localStorage.setItem(this.MOCK_TRIPS_KEY, JSON.stringify(mockTrips));
   }
 
+  async addStopHotel(stopId, { hotel_id, nights = null }) {
+    const numStopId = parseInt(stopId);
+    const numHotelId = parseInt(hotel_id);
+    if (this.isLiveBackend && this.token) {
+      const res = await fetch(`${this.BASE_URL}/api/stops/${numStopId}/hotels`, {
+        method: 'POST',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify({ hotel_id: numHotelId, nights })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Failed to add hotel');
+      return data;
+    }
+
+    const hotelRef = HOTELS_DATA.find(h => h.id === numHotelId);
+    const mockTrips = JSON.parse(localStorage.getItem(this.MOCK_TRIPS_KEY) || '[]');
+    let created = null;
+    mockTrips.forEach(trip => (trip.stops || []).forEach(stop => {
+      if (stop.id === numStopId) {
+        stop.hotels = stop.hotels || [];
+        created = {
+          id: Date.now(),
+          hotel_id: numHotelId,
+          name: hotelRef?.name || "Hotel",
+          tier: hotelRef?.tier || "",
+          price_per_night: hotelRef?.price_per_night || 0,
+          nights: nights || 1
+        };
+        stop.hotels = [created];
+      }
+    }));
+    localStorage.setItem(this.MOCK_TRIPS_KEY, JSON.stringify(mockTrips));
+    return created;
+  }
+
+  async addTripLeg(tripId, legData) {
+    const numTripId = parseInt(tripId);
+    if (this.isLiveBackend && this.token) {
+      const res = await fetch(`${this.BASE_URL}/api/trips/${numTripId}/legs`, {
+        method: 'POST',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify(legData)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Failed to add travel leg');
+      return data;
+    }
+
+    const mockTrips = JSON.parse(localStorage.getItem(this.MOCK_TRIPS_KEY) || '[]');
+    const trip = mockTrips.find(t => t.id === numTripId);
+    if (!trip) throw new Error('Trip not found');
+    const fromCity = CITIES_DATA.find(c => c.id === parseInt(legData.from_city_id));
+    const toCity = CITIES_DATA.find(c => c.id === parseInt(legData.to_city_id));
+    const leg = {
+      id: Date.now(),
+      from_city: fromCity,
+      to_city: toCity,
+      mode: legData.mode || "train",
+      cost: parseInt(legData.cost) || 0,
+      depart_date: legData.depart_date || null,
+      duration_hours: parseInt(legData.duration_hours) || null,
+      order_index: trip.legs ? trip.legs.length : 0
+    };
+    trip.legs = trip.legs || [];
+    trip.legs.push(leg);
+    localStorage.setItem(this.MOCK_TRIPS_KEY, JSON.stringify(mockTrips));
+    return leg;
+  }
+
   // ==================== 6. BUDGET ====================
 
   async getTripBudget(tripId) {
@@ -597,6 +688,122 @@ class GlobeTrotterAPI {
     const trip = mockTrips.find(t => t.share_slug === shareSlug && t.is_public);
     if (!trip) throw new Error('Public trip not found or trip is not marked public');
     return trip;
+  }
+
+  // ==================== 8. FRIENDS, COMMUNITY & CLONE ====================
+
+  async searchUsers(q = '') {
+    if (this.isLiveBackend && this.token) {
+      const res = await fetch(`${this.BASE_URL}/api/users/search?q=${encodeURIComponent(q)}`, { headers: this.getAuthHeaders() });
+      if (res.ok) return await res.json();
+      const data = await res.json();
+      throw new Error(data.detail || 'User search failed');
+    }
+    return [
+      { id: 2, name: "Alice", email: "alice@example.com" },
+      { id: 3, name: "Bob", email: "bob@example.com" }
+    ].filter(u => !q || u.name.toLowerCase().includes(q.toLowerCase()) || u.email.toLowerCase().includes(q.toLowerCase()));
+  }
+
+  async getFriends() {
+    if (this.isLiveBackend && this.token) {
+      const res = await fetch(`${this.BASE_URL}/api/friends`, { headers: this.getAuthHeaders() });
+      if (res.ok) return await res.json();
+    }
+    return JSON.parse(localStorage.getItem('globetrotter_mock_friends_v1') || '[]');
+  }
+
+  async getFriendRequests() {
+    if (this.isLiveBackend && this.token) {
+      const res = await fetch(`${this.BASE_URL}/api/friends/requests`, { headers: this.getAuthHeaders() });
+      if (res.ok) return await res.json();
+    }
+    return JSON.parse(localStorage.getItem('globetrotter_mock_friend_requests_v1') || '[]');
+  }
+
+  async sendFriendRequest(userId) {
+    if (this.isLiveBackend && this.token) {
+      const res = await fetch(`${this.BASE_URL}/api/friends/request`, {
+        method: 'POST',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify({ user_id: parseInt(userId) })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Friend request failed');
+      return data;
+    }
+    return { id: Date.now(), user: { id: parseInt(userId), name: "Demo User" }, status: "pending", direction: "outgoing" };
+  }
+
+  async acceptFriendRequest(friendshipId) {
+    if (this.isLiveBackend && this.token) {
+      const res = await fetch(`${this.BASE_URL}/api/friends/${parseInt(friendshipId)}/accept`, {
+        method: 'POST',
+        headers: this.getAuthHeaders()
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Accept request failed');
+      return data;
+    }
+    return null;
+  }
+
+  async deleteFriendship(friendshipId) {
+    if (this.isLiveBackend && this.token) {
+      const res = await fetch(`${this.BASE_URL}/api/friends/${parseInt(friendshipId)}`, {
+        method: 'DELETE',
+        headers: this.getAuthHeaders()
+      });
+      if (!res.ok && res.status !== 204) throw new Error('Unable to update friendship');
+      return;
+    }
+  }
+
+  async getUserTrips(userId) {
+    if (this.isLiveBackend && this.token) {
+      const res = await fetch(`${this.BASE_URL}/api/users/${parseInt(userId)}/trips`, { headers: this.getAuthHeaders() });
+      if (res.ok) return await res.json();
+      const data = await res.json();
+      throw new Error(data.detail || 'Unable to load user trips');
+    }
+    return JSON.parse(localStorage.getItem(this.MOCK_TRIPS_KEY) || '[]').filter(t => t.visibility !== "private");
+  }
+
+  async getCommunityTrips(limit = 30, offset = 0) {
+    if (this.isLiveBackend && this.token) {
+      const res = await fetch(`${this.BASE_URL}/api/community/trips?limit=${limit}&offset=${offset}`, { headers: this.getAuthHeaders() });
+      if (res.ok) return await res.json();
+      const data = await res.json();
+      throw new Error(data.detail || 'Unable to load community trips');
+    }
+    return JSON.parse(localStorage.getItem(this.MOCK_TRIPS_KEY) || '[]')
+      .filter(t => (t.visibility || (t.is_public ? "public" : "private")) === "public");
+  }
+
+  async cloneTrip(tripId) {
+    const numId = parseInt(tripId);
+    if (this.isLiveBackend && this.token) {
+      const res = await fetch(`${this.BASE_URL}/api/trips/${numId}/clone`, {
+        method: 'POST',
+        headers: this.getAuthHeaders()
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Unable to clone trip');
+      return data;
+    }
+    const mockTrips = JSON.parse(localStorage.getItem(this.MOCK_TRIPS_KEY) || '[]');
+    const source = mockTrips.find(t => t.id === numId);
+    if (!source) throw new Error('Trip not found');
+    const clone = JSON.parse(JSON.stringify(source));
+    clone.id = Date.now();
+    clone.name = `Copy of ${source.name}`;
+    clone.visibility = "private";
+    clone.is_public = false;
+    clone.share_slug = null;
+    clone.owner = this.currentUser ? { id: this.currentUser.id, name: this.currentUser.name } : source.owner;
+    mockTrips.unshift(clone);
+    localStorage.setItem(this.MOCK_TRIPS_KEY, JSON.stringify(mockTrips));
+    return { id: clone.id, name: clone.name, message: "Trip cloned to your account" };
   }
 }
 

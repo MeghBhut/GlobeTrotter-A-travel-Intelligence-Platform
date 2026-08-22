@@ -9,8 +9,9 @@ class GlobeTrotterStateClass {
 
     // Core application state
     this.state = {
-      currentView: 'explore', // 'explore' | 'planner' | 'saved' | 'comparison' | 'profile' | 'public'
+      currentView: 'explore', // 'explore' | 'planner' | 'saved' | 'community' | 'friends' | 'comparison' | 'profile' | 'public'
       plannerViewMode: 'list', // 'list' | 'calendar'
+      timelineStatus: 'all',
       selectedCityId: 1,
       activeModalCityId: null,
       
@@ -55,6 +56,7 @@ class GlobeTrotterStateClass {
         adults: 2,
         children: 0,
         is_public: false,
+        visibility: 'private',
         includeTaxes: true,
         dailyFoodBudgetPerPerson: 1000,
         dailyLocalTransport: 600,
@@ -80,7 +82,8 @@ class GlobeTrotterStateClass {
               3: { morning: null, afternoon: null, evening: null }
             }
           }
-        ]
+        ],
+        legs: []
       },
 
       // Comparison list (numeric IDs)
@@ -88,7 +91,13 @@ class GlobeTrotterStateClass {
 
       // Saved trips from API
       savedTrips: [],
-      backendBudget: null
+      backendBudget: null,
+      communityTrips: [],
+      friends: [],
+      friendRequests: [],
+      friendSearchResults: [],
+      friendTrips: [],
+      selectedFriend: null
     };
 
     this.subscribers = [];
@@ -193,8 +202,18 @@ class GlobeTrotterStateClass {
     this.state.currentView = viewName;
     if (viewName === 'public' && params.slug) {
       this.loadPublicTrip(params.slug);
+    } else if (viewName === 'community') {
+      this.loadCommunityTrips();
+    } else if (viewName === 'friends') {
+      this.loadFriendsHub();
     }
     this.notify('VIEW_CHANGED', { view: viewName, params });
+  }
+
+  setTimelineStatus(status = 'all') {
+    this.state.timelineStatus = status;
+    this.loadSavedTrips(status === 'all' ? '' : status);
+    this.notify('TIMELINE_STATUS_CHANGED', status);
   }
 
   setPlannerViewMode(mode) {
@@ -348,6 +367,31 @@ class GlobeTrotterStateClass {
     const ends = stops.map(s => s.end_date).filter(Boolean).sort();
     if (starts.length) this.state.tripPlan.trip_start_date = starts[0];
     if (ends.length) this.state.tripPlan.trip_end_date = ends[ends.length - 1];
+  }
+
+  rebuildTravelLegs() {
+    const stops = this.state.tripPlan.stops || [];
+    const existing = this.state.tripPlan.legs || [];
+    this.state.tripPlan.legs = [];
+    for (let i = 0; i < stops.length - 1; i++) {
+      const previous = existing[i] || {};
+      this.state.tripPlan.legs.push({
+        from_city_id: stops[i].cityId,
+        to_city_id: stops[i + 1].cityId,
+        mode: previous.mode || 'train',
+        cost: parseInt(previous.cost) || 0,
+        depart_date: previous.depart_date || stops[i].end_date || stops[i + 1].start_date || null,
+        duration_hours: parseInt(previous.duration_hours) || 4
+      });
+    }
+  }
+
+  updateTravelLeg(index, field, value) {
+    this.rebuildTravelLegs();
+    const leg = this.state.tripPlan.legs[parseInt(index)];
+    if (!leg) return;
+    leg[field] = ['cost', 'duration_hours'].includes(field) ? Math.max(0, parseInt(value) || 0) : value;
+    this.notify('LEGS_CHANGED', this.state.tripPlan.legs);
   }
 
   setCity(cityId, applyPreset = true) {
