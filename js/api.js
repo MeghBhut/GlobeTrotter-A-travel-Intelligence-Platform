@@ -12,23 +12,14 @@ class GlobeTrotterAPI {
     this.MOCK_TRIPS_KEY = 'globetrotter_mock_trips_v1';
     
     this.token = localStorage.getItem(this.TOKEN_STORAGE_KEY) || null;
-    this.currentUser = this.loadStoredUser();
+    this.currentUser = null; // Stored user is unverified until validated via GET /api/me
     this.isLiveBackend = false;
 
     this.initMockDatabase();
   }
 
-  loadStoredUser() {
-    try {
-      const data = localStorage.getItem(this.USER_STORAGE_KEY);
-      return data ? JSON.parse(data) : null;
-    } catch (e) {
-      return null;
-    }
-  }
-
   isAuthenticated() {
-    return !!this.token;
+    return !!this.token && !!this.currentUser;
   }
 
   initMockDatabase() {
@@ -165,7 +156,7 @@ class GlobeTrotterAPI {
       return data;
     }
 
-    // Mock Signup
+    // Mock Signup (offline mode)
     const user = { id: Date.now(), name, email };
     const token = 'mock_jwt_token_' + Date.now();
     this.token = token;
@@ -191,7 +182,7 @@ class GlobeTrotterAPI {
       return data;
     }
 
-    // Mock Login
+    // Mock Login (offline mode)
     const name = email.split('@')[0];
     const user = { id: 1, name: name.charAt(0).toUpperCase() + name.slice(1), email };
     const token = 'mock_jwt_token_' + Date.now();
@@ -202,25 +193,57 @@ class GlobeTrotterAPI {
     return { token, user };
   }
 
+  /**
+   * Validate token against GET /api/me.
+   * If invalid, expired, or backend rejects (401), clears token and stored user.
+   */
   async getMe() {
-    if (this.isLiveBackend && this.token) {
+    if (!this.token) {
+      this.logout();
+      return null;
+    }
+
+    if (this.isLiveBackend) {
       try {
-        const res = await fetch(`${this.BASE_URL}/api/me`, { headers: this.getAuthHeaders() });
+        const res = await fetch(`${this.BASE_URL}/api/me`, {
+          method: 'GET',
+          headers: this.getAuthHeaders()
+        });
+
         if (res.ok) {
           this.currentUser = await res.json();
           localStorage.setItem(this.USER_STORAGE_KEY, JSON.stringify(this.currentUser));
           return this.currentUser;
-        } else if (res.status === 401) {
+        } else {
+          // Token is invalid/expired (e.g. 401 Unauthorized) -> clear immediately
           this.logout();
           return null;
         }
       } catch (e) {
-        console.warn('Backend getMe failed');
+        console.warn('Backend getMe network error:', e);
+        this.logout();
+        return null;
       }
+    } else {
+      // In offline / mock mode: if a mock user was stored, load it, otherwise null
+      const stored = localStorage.getItem(this.USER_STORAGE_KEY);
+      if (stored) {
+        try {
+          this.currentUser = JSON.parse(stored);
+          return this.currentUser;
+        } catch (e) {
+          this.logout();
+          return null;
+        }
+      }
+      this.logout();
+      return null;
     }
-    return this.currentUser;
   }
 
+  /**
+   * Clear both auth token and stored user
+   */
   logout() {
     this.token = null;
     this.currentUser = null;
@@ -234,7 +257,10 @@ class GlobeTrotterAPI {
     if (this.isLiveBackend && this.token) {
       const res = await fetch(`${this.BASE_URL}/api/trips`, { headers: this.getAuthHeaders() });
       if (res.ok) return await res.json();
-      if (res.status === 401) throw new Error('Unauthorized');
+      if (res.status === 401) {
+        this.logout();
+        throw new Error('Unauthorized');
+      }
     }
 
     const mockTrips = JSON.parse(localStorage.getItem(this.MOCK_TRIPS_KEY) || '[]');
@@ -369,6 +395,7 @@ class GlobeTrotterAPI {
       start_date: stopData.start_date || null,
       end_date: stopData.end_date || null,
       order_index: trip.stops ? trip.stops.length : 0,
+      hotel: stopData.hotel_id ? HOTELS_DATA.find(h => h.id === parseInt(stopData.hotel_id)) || null : null,
       activities: []
     };
 

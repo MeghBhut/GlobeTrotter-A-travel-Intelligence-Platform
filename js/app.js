@@ -11,9 +11,12 @@ class GlobeTrotterApp {
     this.api = window.GlobeTrotterAPI;
   }
 
-  init() {
+  async init() {
     console.log('🌏 GlobeTrotter App v2 Ready');
+    // Validate any persisted auth token on page load before rendering UI
+    await this.state.initUser();
     this.ui.init();
+    // Set up global shortcuts, planner listeners, and route handling
     this.setupGlobalShortcuts();
     this.setupPlannerFormListeners();
     this.handleRouteFromHash();

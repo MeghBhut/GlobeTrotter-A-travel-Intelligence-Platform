@@ -174,6 +174,8 @@ class GlobeTrotterUI {
       case 'PRESET_APPLIED':
       case 'HOTEL_CHANGED':
       case 'ACTIVITIES_CHANGED':
+      case 'ACTIVE_STOP_CHANGED':
+      case 'STOPS_CHANGED':
       case 'DURATION_CHANGED':
       case 'DATES_CHANGED':
       case 'TRAVELERS_CHANGED':
@@ -585,8 +587,11 @@ class GlobeTrotterUI {
   }
 
   renderPlanner() {
+    this.state.ensureStops();
     const currentCity = this.state.getCurrentCity();
     const tripPlan = this.state.getState().tripPlan;
+    const activeStop = this.state.getActiveStop();
+    const stops = tripPlan.stops || [];
     const viewMode = this.state.getState().plannerViewMode;
     const currency = this.state.getState().currency;
 
@@ -613,7 +618,7 @@ class GlobeTrotterUI {
           <div class="absolute inset-0 p-6 flex flex-col justify-between">
             <div class="flex justify-between items-start">
               <span class="chip text-xs">
-                ${currentCity.region} India • Best: ${currentCity.bestTime} (ID: ${currentCity.id})
+                Stop ${tripPlan.activeStopIndex + 1} of ${stops.length} • ${currentCity.region} India • Best: ${currentCity.bestTime} (ID: ${currentCity.id})
               </span>
               <button onclick="GlobeTrotterState.setModalCity(${currentCity.id})" class="btn-secondary text-xs">
                 <i data-lucide="eye" class="w-3 h-3"></i> View Catalog
@@ -628,6 +633,8 @@ class GlobeTrotterUI {
         </div>
       `;
     }
+
+    this.renderStopsManager();
 
     // 3. Preset Tier Pills
     const presetContainer = document.getElementById('planner-preset-pills');
@@ -651,7 +658,7 @@ class GlobeTrotterUI {
 
     // 4. Form inputs
     const nightsInput = document.getElementById('input-nights');
-    if (nightsInput) nightsInput.value = tripPlan.nights;
+    if (nightsInput) nightsInput.value = activeStop.nights;
 
     const adultsInput = document.getElementById('input-adults');
     if (adultsInput) adultsInput.value = tripPlan.adults;
@@ -749,6 +756,67 @@ class GlobeTrotterUI {
     this.renderDayScheduler(viewMode);
   }
 
+  renderStopsManager() {
+    const container = document.getElementById('planner-stops-manager');
+    if (!container) return;
+
+    const tripPlan = this.state.getState().tripPlan;
+    const stops = tripPlan.stops || [];
+    const activeIndex = tripPlan.activeStopIndex || 0;
+
+    container.innerHTML = `
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <span class="eyebrow">POST /api/trips/{id}/stops</span>
+          <h3 class="text-sm font-bold uppercase tracking-wider text-[var(--cyan)] flex items-center gap-2">
+            <i data-lucide="route" class="w-4 h-4"></i> Multi-City Trip Stops
+          </h3>
+        </div>
+        <button onclick="GlobeTrotterState.addTripStop()" class="btn-primary text-xs">
+          <i data-lucide="plus" class="w-3.5 h-3.5"></i> Add City Stop
+        </button>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+        ${stops.map((stop, index) => {
+          const city = CITIES_DATA.find(c => c.id === stop.cityId) || CITIES_DATA[0];
+          const actCount = (stop.activityIds || []).length;
+          return `
+            <div class="p-3 rounded-[var(--radius-control)] border ${index === activeIndex ? 'surface-elevated border-[var(--cyan)]' : 'surface-inset border-[var(--line)]'}">
+              <button onclick="GlobeTrotterState.setActiveStop(${index})" class="w-full text-left">
+                <div class="flex items-start justify-between gap-2">
+                  <div>
+                    <span class="eyebrow">Stop ${index + 1}</span>
+                    <h4 class="font-bold text-primary text-sm">${city.name}</h4>
+                    <p class="text-[11px] text-dim">${stop.start_date || 'Start'} to ${stop.end_date || 'End'} • ${stop.nights || 1} nts • ${actCount} tours</p>
+                  </div>
+                  <span class="chip text-[10px] ${index === activeIndex ? 'active' : ''}">${index === activeIndex ? 'Editing' : 'Select'}</span>
+                </div>
+              </button>
+              <div class="grid grid-cols-2 gap-2 mt-3">
+                <input id="stop-start-${index}" type="date" value="${stop.start_date || ''}" onchange="GlobeTrotterState.setActiveStop(${index}); GlobeTrotterState.setTripDates(this.value, document.getElementById('stop-end-${index}').value)" class="input text-[11px] py-1.5" />
+                <input id="stop-end-${index}" type="date" value="${stop.end_date || ''}" onchange="GlobeTrotterState.setActiveStop(${index}); GlobeTrotterState.setTripDates(document.getElementById('stop-start-${index}')?.value || '${stop.start_date || ''}', this.value)" class="input text-[11px] py-1.5" />
+              </div>
+              <div class="flex justify-between items-center mt-3 pt-2 border-t border-[var(--line)]">
+                <div class="flex gap-1">
+                  <button onclick="GlobeTrotterState.moveTripStop(${index}, -1)" class="theme-toggle" title="Move earlier" ${index === 0 ? 'disabled' : ''}>
+                    <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i>
+                  </button>
+                  <button onclick="GlobeTrotterState.moveTripStop(${index}, 1)" class="theme-toggle" title="Move later" ${index === stops.length - 1 ? 'disabled' : ''}>
+                    <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
+                  </button>
+                </div>
+                <button onclick="GlobeTrotterState.removeTripStop(${index})" class="text-dim hover:text-rose-500 transition p-1" title="Remove stop" ${stops.length <= 1 ? 'disabled' : ''}>
+                  <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                </button>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+  }
+
   renderDayScheduler(viewMode = 'list') {
     const container = document.getElementById('planner-schedule-container');
     if (!container) return;
@@ -771,7 +839,7 @@ class GlobeTrotterUI {
           <div class="surface-inset p-3.5 rounded-[var(--radius-card)] border border-[var(--line)] space-y-2">
             <div class="flex justify-between items-center border-b border-[var(--line)] pb-1.5">
               <span class="eyebrow">Day ${day}</span>
-              <span class="stat-mono text-[10px] text-dim">${new Date(Date.now() + (day - 1)*86400000).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}</span>
+              <span class="stat-mono text-[10px] text-dim">${this.formatStopDayDate(state.tripPlan.start_date, day)}</span>
             </div>
             <div class="space-y-1.5 text-xs">
               <div class="p-1.5 rounded-[var(--radius-control)] bg-[var(--surface)]">
@@ -846,6 +914,12 @@ class GlobeTrotterUI {
     }
 
     container.innerHTML = html;
+  }
+
+  formatStopDayDate(startDate, day) {
+    if (!startDate) return `Day ${day}`;
+    const date = new Date(new Date(startDate).getTime() + (day - 1) * 86400000);
+    return date.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
   }
 
   renderBudgetSidebar() {
@@ -955,16 +1029,18 @@ class GlobeTrotterUI {
     }
 
     container.innerHTML = saved.map(trip => {
-      const stop = trip.stops && trip.stops[0] ? trip.stops[0] : null;
-      const city = stop && stop.city ? stop.city : CITIES_DATA[0];
-      const actCount = stop && stop.activities ? stop.activities.length : (trip.destination_count || 0);
+      const stops = (trip.stops || []).slice().sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
+      const routeCities = stops.map(stop => stop.city?.name).filter(Boolean);
+      const city = stops[0] && stops[0].city ? stops[0].city : CITIES_DATA[0];
+      const actCount = stops.reduce((sum, stop) => sum + ((stop.activities || []).length), 0);
+      const routeLabel = routeCities.length ? routeCities.join(' → ') : `${city.name || 'Trip'}, ${city.state || ''}`;
 
       return `
         <div class="surface-elevated p-5 flex flex-col justify-between">
           <div>
             <div class="flex justify-between items-start mb-2">
               <div>
-                <p class="eyebrow">${city.name || 'Trip'}, ${city.state || ''}</p>
+                <p class="eyebrow">${routeLabel}</p>
                 <h4 class="text-xl font-bold text-primary mt-0.5">${trip.name}</h4>
               </div>
               <button onclick="GlobeTrotterApp.deleteTrip(${trip.id})" class="text-dim hover:text-rose-500 p-1 transition cursor-pointer" title="Delete Trip">
@@ -973,7 +1049,7 @@ class GlobeTrotterUI {
             </div>
             
             <p class="text-xs text-dim mb-3">
-              ${trip.start_date || '2026-09-01'} to ${trip.end_date || '2026-09-04'} • ${trip.destination_count || (trip.stops ? trip.stops.length : 1)} Stops
+              ${trip.start_date || '2026-09-01'} to ${trip.end_date || '2026-09-04'} • ${trip.destination_count || stops.length || 1} Stops • ${actCount} Activities
             </p>
 
             <div class="p-3 rounded-[var(--radius-control)] surface-inset mb-4 text-xs space-y-2">
