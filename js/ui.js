@@ -2,7 +2,7 @@
  * GlobeTrotter UI Rendering Controller (Cyanotype Theme & v2 Tasks Compliant)
  */
 
-class GlobeTrotterUI {
+class GlobeTrotterUIClass {
   constructor() {
     this.state = window.GlobeTrotterState;
     this.planner = window.GlobeTrotterPlanner;
@@ -1394,4 +1394,4 @@ class GlobeTrotterUI {
   }
 }
 
-window.GlobeTrotterUI = new GlobeTrotterUI();
+window.GlobeTrotterUI = new GlobeTrotterUIClass();
