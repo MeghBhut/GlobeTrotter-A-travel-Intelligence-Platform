@@ -1,55 +1,75 @@
-# GlobeTrotter — API Contract (v1 prototype)
+# GlobeTrotter — API Contract (v1)
 
-**For the frontend developer.** These are the requests the backend will answer.
-Build static/mock JSON in **exactly these shapes** and your screens will drop
-straight onto the real backend later with no changes.
+**For Frontend and Backend Developers.** These are the REST API requests and response schemas for GlobeTrotter.
+Build static/mock JSON in **exactly these shapes** and the frontend will connect to the live backend seamlessly.
 
-**Base URL (local dev):** `http://localhost:8000`
-**Format:** JSON over HTTP. Auth endpoints return a `token`; send it back on
-protected calls as header `Authorization: Bearer <token>`.
-
-Scope note for v1: **public trips only** (no friends), **no photo upload**
-(`cover_photo_url` may be null).
+**Base URL (local dev):** `http://localhost:8000`  
+**Format:** JSON over HTTP. Auth endpoints return a JWT `token`; send it on protected calls as:  
+`Authorization: Bearer <token>`
 
 ---
 
-## Core data objects (the shapes everything reuses)
+## Core Data Models
 
-### City
+### 1. City
 ```json
-{ "id": 1, "name": "Mumbai", "state": "Maharashtra", "country": "India" }
+{
+  "id": 1,
+  "name": "Mumbai",
+  "state": "Maharashtra",
+  "country": "India",
+  "region": "West",
+  "tagline": "The City of Dreams, Colonial Heritage & Coastal Glamour",
+  "hero_image": "https://images.unsplash.com/photo-1570168007204-dfb528c6958f?auto=format&fit=crop&w=1200&q=80"
+}
 ```
 
-### Activity
+### 2. Activity
 ```json
-{ "id": 101, "city_id": 1, "name": "Gateway of India & Taj Palace Walk", "price_per_person": 0 }
+{
+  "id": 101,
+  "city_id": 1,
+  "name": "Gateway of India & Taj Palace Walk",
+  "price_per_person": 0,
+  "category": "Heritage",
+  "duration": "1.5 hrs",
+  "highlight": true,
+  "description": "Marvel at the monumental basalt arch overlooking Mumbai harbour and the majestic facade of the 1903 Taj Mahal Palace."
+}
 ```
 
-### Hotel
+### 3. Hotel
 ```json
-{ "id": 1001, "city_id": 1, "name": "Abode Bombay", "tier": "Boutique", "price_per_night": 3500 }
+{
+  "id": 1001,
+  "city_id": 1,
+  "name": "Abode Bombay",
+  "tier": "Boutique",
+  "price_per_night": 3500,
+  "rating": 4.5,
+  "location": "Colaba",
+  "amenities": ["Free Wi-Fi", "Vintage Decor", "Artisan Breakfast"]
+}
 ```
 
 ---
 
-## 1. Reference data (from the seed PDF) — build static JSON for these first
-
-These never change per-user, so they are the easiest to mock.
+## 1. Reference Data (10 Seed Destinations Catalog)
 
 ### `GET /api/cities`
-Returns all 10 cities.
+Returns all 10 destinations. Supports optional `?search=` and `?region=` query parameters.
 ```json
 [
-  { "id": 1,  "name": "Mumbai",    "state": "Maharashtra",   "country": "India" },
-  { "id": 2,  "name": "New Delhi", "state": "Delhi",         "country": "India" },
-  { "id": 3,  "name": "Jaipur",    "state": "Rajasthan",     "country": "India" },
-  { "id": 4,  "name": "Bengaluru", "state": "Karnataka",     "country": "India" },
-  { "id": 5,  "name": "Varanasi",  "state": "Uttar Pradesh", "country": "India" },
-  { "id": 6,  "name": "Udaipur",   "state": "Rajasthan",     "country": "India" },
-  { "id": 7,  "name": "Kolkata",   "state": "West Bengal",   "country": "India" },
-  { "id": 8,  "name": "Kochi",     "state": "Kerala",        "country": "India" },
-  { "id": 9,  "name": "Hyderabad", "state": "Telangana",     "country": "India" },
-  { "id": 10, "name": "Goa",       "state": "Goa",           "country": "India" }
+  { "id": 1,  "name": "Mumbai",    "state": "Maharashtra",   "country": "India", "region": "West" },
+  { "id": 2,  "name": "New Delhi", "state": "Delhi NCR",      "country": "India", "region": "North" },
+  { "id": 3,  "name": "Jaipur",    "state": "Rajasthan",     "country": "India", "region": "North" },
+  { "id": 4,  "name": "Bengaluru", "state": "Karnataka",     "country": "India", "region": "South" },
+  { "id": 5,  "name": "Varanasi",  "state": "Uttar Pradesh", "country": "India", "region": "North" },
+  { "id": 6,  "name": "Udaipur",   "state": "Rajasthan",     "country": "India", "region": "North" },
+  { "id": 7,  "name": "Kolkata",   "state": "West Bengal",   "country": "India", "region": "East" },
+  { "id": 8,  "name": "Kochi",     "state": "Kerala",        "country": "India", "region": "South" },
+  { "id": 9,  "name": "Hyderabad", "state": "Telangana",     "country": "India", "region": "South" },
+  { "id": 10, "name": "Goa",       "state": "Goa",           "country": "India", "region": "West" }
 ]
 ```
 
@@ -57,44 +77,39 @@ Returns all 10 cities.
 Returns the 10 activities for that city. Example — `GET /api/cities/1/activities` (Mumbai):
 ```json
 [
-  { "id": 101, "city_id": 1, "name": "Gateway of India & Taj Palace Walk",        "price_per_person": 0   },
-  { "id": 102, "city_id": 1, "name": "Marine Drive Sunset Promenade Stroll",      "price_per_person": 0   },
-  { "id": 103, "city_id": 1, "name": "Elephanta Caves Ferry & Island Tour",       "price_per_person": 260 },
-  { "id": 104, "city_id": 1, "name": "CSMT Station Heritage Walk",                "price_per_person": 0   },
-  { "id": 105, "city_id": 1, "name": "Dharavi Guided Tour",                       "price_per_person": 750 },
-  { "id": 106, "city_id": 1, "name": "Colaba Causeway Shopping & Cafe Trail",     "price_per_person": 500 },
-  { "id": 107, "city_id": 1, "name": "Bandra Bandstand & Celebrity Homes Walk",   "price_per_person": 0   },
-  { "id": 108, "city_id": 1, "name": "Juhu Beach Street Food Experience",         "price_per_person": 300 },
-  { "id": 109, "city_id": 1, "name": "Sanjay Gandhi National Park & Kanheri Caves","price_per_person": 150 },
-  { "id": 110, "city_id": 1, "name": "Crawford Market & Spice Trail Walk",        "price_per_person": 0   }
+  { "id": 101, "city_id": 1, "name": "Gateway of India & Taj Palace Walk", "price_per_person": 0, "category": "Heritage" },
+  { "id": 102, "city_id": 1, "name": "Marine Drive Sunset Promenade Stroll", "price_per_person": 0, "category": "Sightseeing" },
+  { "id": 103, "city_id": 1, "name": "Elephanta Caves Ferry & Island Tour", "price_per_person": 260, "category": "Heritage" },
+  { "id": 104, "city_id": 1, "name": "CSMT Station Heritage Walk", "price_per_person": 0, "category": "Heritage" },
+  { "id": 105, "city_id": 1, "name": "Dharavi Guided Tour", "price_per_person": 750, "category": "Culture" },
+  { "id": 106, "city_id": 1, "name": "Colaba Causeway Shopping & Cafe Trail", "price_per_person": 500, "category": "Shopping" },
+  { "id": 107, "city_id": 1, "name": "Bandra Bandstand & Celebrity Homes Walk", "price_per_person": 0, "category": "Sightseeing" },
+  { "id": 108, "city_id": 1, "name": "Juhu Beach Street Food Experience", "price_per_person": 300, "category": "Food" },
+  { "id": 109, "city_id": 1, "name": "Sanjay Gandhi National Park & Kanheri Caves", "price_per_person": 150, "category": "Nature" },
+  { "id": 110, "city_id": 1, "name": "Crawford Market & Spice Trail Walk", "price_per_person": 0, "category": "Food" }
 ]
 ```
-*All 10 cities follow this identical shape. The backend team will supply the full
-seed JSON for every city so you don't transcribe by hand.*
 
 ### `GET /api/cities/{id}/hotels`
-Returns the 10 hotels for that city (already sorted low→high). Example — `GET /api/cities/1/hotels` (Mumbai):
+Returns the 10 hotels for that city sorted from low to high price. Example — `GET /api/cities/1/hotels` (Mumbai):
 ```json
 [
-  { "id": 1001, "city_id": 1, "name": "Abode Bombay",          "tier": "Boutique",   "price_per_night": 3500  },
-  { "id": 1002, "city_id": 1, "name": "Gordon House Hotel",    "tier": "Mid-Range",  "price_per_night": 5500  },
-  { "id": 1003, "city_id": 1, "name": "Hotel Marine Plaza",    "tier": "4-Star",     "price_per_night": 7500  },
-  { "id": 1004, "city_id": 1, "name": "Soho House Mumbai",     "tier": "Boutique Lux","price_per_night": 12000 },
-  { "id": 1005, "city_id": 1, "name": "ITC Grand Central",     "tier": "5-Star Lux", "price_per_night": 13500 },
+  { "id": 1001, "city_id": 1, "name": "Abode Bombay", "tier": "Boutique", "price_per_night": 3500 },
+  { "id": 1002, "city_id": 1, "name": "Gordon House Hotel", "tier": "Mid-Range", "price_per_night": 5500 },
+  { "id": 1003, "city_id": 1, "name": "Hotel Marine Plaza", "tier": "4-Star", "price_per_night": 7500 },
+  { "id": 1004, "city_id": 1, "name": "Soho House Mumbai", "tier": "Boutique Lux", "price_per_night": 12000 },
+  { "id": 1005, "city_id": 1, "name": "ITC Grand Central", "tier": "5-Star Lux", "price_per_night": 13500 },
   { "id": 1006, "city_id": 1, "name": "Trident Nariman Point", "tier": "5-Star Lux", "price_per_night": 15000 },
-  { "id": 1007, "city_id": 1, "name": "JW Marriott Mumbai Juhu","tier": "5-Star Lux","price_per_night": 18000 },
-  { "id": 1008, "city_id": 1, "name": "The St. Regis Mumbai",  "tier": "Ultra Lux",  "price_per_night": 21000 },
-  { "id": 1009, "city_id": 1, "name": "The Oberoi Mumbai",     "tier": "Ultra Lux",  "price_per_night": 24000 },
-  { "id": 1010, "city_id": 1, "name": "The Taj Mahal Palace",  "tier": "Iconic Lux", "price_per_night": 28000 }
+  { "id": 1007, "city_id": 1, "name": "JW Marriott Mumbai Juhu", "tier": "5-Star Lux", "price_per_night": 18000 },
+  { "id": 1008, "city_id": 1, "name": "The St. Regis Mumbai", "tier": "Ultra Lux", "price_per_night": 21000 },
+  { "id": 1009, "city_id": 1, "name": "The Oberoi Mumbai", "tier": "Ultra Lux", "price_per_night": 24000 },
+  { "id": 1010, "city_id": 1, "name": "The Taj Mahal Palace", "tier": "Iconic Lux", "price_per_night": 28000 }
 ]
 ```
-
-### `GET /api/cities?search=jai`  (City Search screen)
-Same shape as `GET /api/cities`, filtered by name. Empty `search` = all cities.
 
 ---
 
-## 2. Auth
+## 2. Authentication
 
 ### `POST /api/signup`
 Request:
@@ -103,7 +118,10 @@ Request:
 ```
 Response `201`:
 ```json
-{ "token": "eyJhbGci...", "user": { "id": 1, "name": "Megh", "email": "megh@example.com" } }
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "user": { "id": 1, "name": "Megh", "email": "megh@example.com" }
+}
 ```
 
 ### `POST /api/login`
@@ -113,143 +131,148 @@ Request:
 ```
 Response `200`: same shape as signup (`token` + `user`).
 
-### `GET /api/me`  (protected)
-Returns the logged-in user:
+### `GET /api/me` (Protected)
+Returns the logged-in user profile:
 ```json
 { "id": 1, "name": "Megh", "email": "megh@example.com" }
 ```
 
-Error shape (all endpoints):
+Error response (HTTP 400 / 401 / 404):
 ```json
 { "detail": "Invalid email or password" }
 ```
 
 ---
 
-## 3. Trips (protected — the user's own trips)
+## 3. Trips Management (Protected)
 
-### Trip object
+### Trip Object Schema
 ```json
 {
   "id": 1,
-  "name": "Golden Triangle",
-  "description": "Delhi–Jaipur loop",
+  "name": "Golden Triangle Explorer",
+  "description": "Delhi & Jaipur cultural heritage tour",
   "start_date": "2026-09-01",
   "end_date": "2026-09-07",
+  "num_people": 2,
   "is_public": false,
-  "share_slug": null,
+  "share_slug": "golden-triangle-789a",
   "cover_photo_url": null,
-  "destination_count": 2
-}
-```
-
-### `GET /api/trips`  → array of Trip objects (My Trips screen)
-
-### `POST /api/trips`
-Request:
-```json
-{ "name": "Golden Triangle", "description": "Delhi–Jaipur loop",
-  "start_date": "2026-09-01", "end_date": "2026-09-07" }
-```
-Response `201`: the created Trip object.
-
-### `GET /api/trips/{id}`  → full trip **with stops** (Itinerary View)
-```json
-{
-  "id": 1,
-  "name": "Golden Triangle",
-  "description": "Delhi–Jaipur loop",
-  "start_date": "2026-09-01",
-  "end_date": "2026-09-07",
-  "is_public": false,
-  "share_slug": null,
-  "cover_photo_url": null,
+  "destination_count": 2,
   "stops": [
     {
       "id": 10,
-      "city": { "id": 2, "name": "New Delhi", "state": "Delhi", "country": "India" },
+      "trip_id": 1,
+      "city": { "id": 2, "name": "New Delhi", "state": "Delhi NCR", "country": "India" },
       "start_date": "2026-09-01",
-      "end_date": "2026-09-03",
+      "end_date": "2026-09-04",
       "order_index": 0,
+      "hotel": { "id": 2003, "name": "The Claridges New Delhi", "tier": "Heritage 5*", "price_per_night": 9500 },
       "activities": [
-        { "id": 55, "activity_id": 201, "name": "Red Fort & Chandni Chowk Rikshaw Tour", "price_per_person": 350, "num_people": 2 }
+        { "id": 55, "activity_id": 201, "name": "Red Fort & Chandni Chowk Rikshaw Tour", "price_per_person": 350, "num_people": 2 },
+        { "id": 56, "activity_id": 207, "name": "Old Delhi Food Tasting Experience", "price_per_person": 600, "num_people": 2 }
       ]
     }
   ]
 }
 ```
 
-### `PUT /api/trips/{id}`  → update name/dates/description/is_public. Returns Trip object.
-### `DELETE /api/trips/{id}`  → `204` no content.
+### `GET /api/trips`
+Returns all trips created by the logged-in user.
+
+### `POST /api/trips`
+Request:
+```json
+{
+  "name": "Golden Triangle Explorer",
+  "description": "Delhi & Jaipur cultural tour",
+  "start_date": "2026-09-01",
+  "end_date": "2026-09-07",
+  "num_people": 2,
+  "is_public": false
+}
+```
+Response `201`: the created Trip object.
+
+### `GET /api/trips/{id}`
+Returns full trip details including nested stops, assigned hotels, and activities.
+
+### `PUT /api/trips/{id}`
+Request: update any of `name`, `description`, `start_date`, `end_date`, `num_people`, `is_public`.
+Response `200`: updated Trip object.
+
+### `DELETE /api/trips/{id}`
+Response `204`: No content.
 
 ---
 
-## 4. Stops (cities inside a trip)
+## 4. Stops Management (Cities inside a trip)
 
 ### `POST /api/trips/{id}/stops`
 Request:
 ```json
-{ "city_id": 3, "start_date": "2026-09-03", "end_date": "2026-09-05" }
+{
+  "city_id": 3,
+  "start_date": "2026-09-04",
+  "end_date": "2026-09-07",
+  "hotel_id": 3004
+}
 ```
-Response `201`: the created stop object (same shape as a stop in section 3).
+Response `201`: created Stop object.
 
-### `PUT /api/stops/{id}`  → update dates / order_index (drag-to-reorder).
-### `DELETE /api/stops/{id}`  → `204`.
+### `PUT /api/stops/{id}`
+Request: update dates, `hotel_id`, or `order_index`.
+Response `200`: updated Stop object.
+
+### `DELETE /api/stops/{id}`
+Response `204`: No content.
 
 ---
 
-## 5. Activities inside a stop
+## 5. Activities inside a Stop
 
 ### `POST /api/stops/{id}/activities`
 Request:
 ```json
-{ "activity_id": 201, "num_people": 2 }
+{
+  "activity_id": 301,
+  "num_people": 2
+}
 ```
-Response `201`: the added activity line (as shown in the stop's `activities` array).
+Response `201`: added activity object.
 
-### `DELETE /api/stop-activities/{id}`  → `204`.
+### `DELETE /api/stop-activities/{id}`
+Response `204`: No content.
 
 ---
 
-## 6. Budget (Trip Budget & Cost Breakdown screen)
+## 6. Budget & Cost Breakdown
 
 ### `GET /api/trips/{id}/budget`
-Backend computes this from the stops/activities. Frontend just displays it.
+Returns aggregated financial calculation computed from the trip's stops, hotels, and activities.
 ```json
 {
   "trip_id": 1,
   "currency": "INR",
-  "total": 8700,
+  "total": 43900,
   "breakdown": {
-    "activities": 8700,
-    "hotels": 0,
-    "transport": 0,
-    "meals": 0
+    "hotels": 28500,
+    "activities": 3800,
+    "meals": 7000,
+    "transport": 4600
   },
   "per_day": [
-    { "date": "2026-09-01", "amount": 700 },
-    { "date": "2026-09-02", "amount": 0 }
+    { "date": "2026-09-01", "amount": 10450 },
+    { "date": "2026-09-02", "amount": 10100 },
+    { "date": "2026-09-03", "amount": 9500 }
   ],
-  "average_per_day": 1450
+  "average_per_day": 7316
 }
 ```
-*(v1 computes `activities` = Σ price_per_person × num_people. `hotels`/`transport`/
-`meals` are 0 for now — kept in the shape so charts don't need rework later.)*
 
 ---
 
-## 7. Public share (Shared/Public Itinerary View)
+## 7. Public Itinerary Sharing
 
-### `GET /api/public/{slug}`  (no auth)
-Read-only copy of a trip that has `is_public: true`. Same shape as
-`GET /api/trips/{id}` but without private fields. Used by the public URL page.
-
----
-
-## What to build first (frontend)
-1. Mock all of **section 1** (cities/activities/hotels) as static JSON — this is your whole seed catalog.
-2. Mock **section 3** trip objects to build My Trips + Itinerary View screens.
-3. Everything else can start against mocks and switch to the live backend when ready.
-
-**Rule of thumb:** if the shapes above match, the day we connect to the real
-backend, nothing on your side breaks.
+### `GET /api/public/{share_slug}` (No Auth required)
+Returns the public read-only itinerary view for any trip with `is_public: true`.
