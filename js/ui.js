@@ -50,11 +50,11 @@ class GlobeTrotterUIClass {
       tab.addEventListener('click', (e) => {
         const view = e.currentTarget.dataset.view;
         if (view) {
-          // Auth Gate for Saved Trips / Profile
-          if (view === 'saved' && !this.state.isAuthenticated()) {
+          // Auth Gate for account-backed screens
+          if (['saved', 'friends'].includes(view) && !this.state.isAuthenticated()) {
             this.openAuthModal('login');
             if (window.GlobeTrotterApp) {
-              window.GlobeTrotterApp.showToast('Please log in to view and manage your trips', 'warning');
+              window.GlobeTrotterApp.showToast('Please log in to use this account feature', 'warning');
             }
             return;
           }
@@ -152,6 +152,10 @@ class GlobeTrotterUIClass {
       case 'PLANNER_VIEW_MODE_CHANGED':
         this.renderPlanner();
         break;
+      case 'TIMELINE_STATUS_CHANGED':
+        this.renderTimelineTabs();
+        this.renderSavedTrips();
+        break;
       case 'AUTH_STATE_CHANGED':
         this.renderProfilePill();
         this.renderProfileView();
@@ -180,8 +184,10 @@ class GlobeTrotterUIClass {
       case 'DATES_CHANGED':
       case 'TRAVELERS_CHANGED':
       case 'TAXES_TOGGLED':
+      case 'VISIBILITY_CHANGED':
       case 'ALLOWANCES_CHANGED':
       case 'SCHEDULE_UPDATED':
+      case 'LEGS_CHANGED':
       case 'TRIP_LOADED':
         this.renderPlanner();
         this.renderBudgetSidebar();
@@ -208,6 +214,18 @@ class GlobeTrotterUIClass {
       case 'COMPARISON_UPDATED':
         this.renderComparison();
         break;
+      case 'COMMUNITY_TRIPS_LOADING':
+      case 'COMMUNITY_TRIPS_LOADED':
+      case 'COMMUNITY_TRIPS_ERROR':
+        this.renderCommunityTrips();
+        break;
+      case 'FRIENDS_LOADING':
+      case 'FRIENDS_LOADED':
+      case 'FRIEND_SEARCH_UPDATED':
+      case 'FRIEND_TRIPS_LOADED':
+      case 'FRIENDS_ERROR':
+        this.renderFriendsHub();
+        break;
       default:
         break;
     }
@@ -220,6 +238,9 @@ class GlobeTrotterUIClass {
     this.renderPlanner();
     this.renderBudgetSidebar();
     this.renderSavedTrips();
+    this.renderTimelineTabs();
+    this.renderCommunityTrips();
+    this.renderFriendsHub();
     this.renderComparison();
     this.renderProfileView();
     this.renderView(this.state.getState().currentView);
@@ -227,7 +248,7 @@ class GlobeTrotterUIClass {
   }
 
   renderView(viewName, params = {}) {
-    const views = ['explore', 'planner', 'saved', 'comparison', 'profile', 'public'];
+    const views = ['explore', 'planner', 'saved', 'friends', 'community', 'comparison', 'profile', 'public'];
     views.forEach(v => {
       const el = document.getElementById(`view-${v}`);
       const tabs = document.querySelectorAll(`.nav-tab[data-view="${v}"]`);
@@ -670,10 +691,21 @@ class GlobeTrotterUIClass {
     if (taxToggle) taxToggle.checked = tripPlan.includeTaxes;
 
     const foodInput = document.getElementById('input-food-rate');
-    if (foodInput) foodInput.value = tripPlan.dailyFoodBudgetPerPerson;
+    if (foodInput) {
+      foodInput.value = tripPlan.dailyFoodBudgetPerPerson;
+      const foodLabel = document.getElementById('label-food-rate');
+      if (foodLabel) foodLabel.textContent = tripPlan.dailyFoodBudgetPerPerson;
+    }
 
     const transportInput = document.getElementById('input-transport-rate');
-    if (transportInput) transportInput.value = tripPlan.dailyLocalTransport;
+    if (transportInput) {
+      transportInput.value = tripPlan.dailyLocalTransport;
+      const transportLabel = document.getElementById('label-transport-rate');
+      if (transportLabel) transportLabel.textContent = tripPlan.dailyLocalTransport;
+    }
+
+    const visibilityInput = document.getElementById('input-trip-visibility');
+    if (visibilityInput) visibilityInput.value = tripPlan.visibility || 'private';
 
     // 5. Hotel Selection List
     const hotelsList = document.getElementById('planner-hotels-list');
@@ -763,6 +795,8 @@ class GlobeTrotterUIClass {
     const tripPlan = this.state.getState().tripPlan;
     const stops = tripPlan.stops || [];
     const activeIndex = tripPlan.activeStopIndex || 0;
+    this.state.rebuildTravelLegs();
+    const legs = tripPlan.legs || [];
 
     container.innerHTML = `
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -814,6 +848,42 @@ class GlobeTrotterUIClass {
           `;
         }).join('')}
       </div>
+
+      ${legs.length ? `
+        <div class="pt-4 mt-2 border-t border-[var(--line)] space-y-3">
+          <div class="flex items-center justify-between">
+            <div>
+              <span class="eyebrow">POST /api/trips/{id}/legs</span>
+              <h4 class="text-sm font-bold uppercase tracking-wider text-[var(--cyan)] flex items-center gap-2">
+                <i data-lucide="move-right" class="w-4 h-4"></i> Travel Between Cities
+              </h4>
+            </div>
+            <span class="text-[11px] text-dim">Saved as transport budget</span>
+          </div>
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            ${legs.map((leg, index) => {
+              const from = CITIES_DATA.find(c => c.id === parseInt(leg.from_city_id)) || {};
+              const to = CITIES_DATA.find(c => c.id === parseInt(leg.to_city_id)) || {};
+              return `
+                <div class="surface-inset p-3 rounded-[var(--radius-control)] border border-[var(--line)] space-y-3">
+                  <div class="flex items-center justify-between gap-2 text-xs">
+                    <span class="font-bold text-primary">${from.name || 'From'} to ${to.name || 'To'}</span>
+                    <span class="chip text-[10px]">Leg ${index + 1}</span>
+                  </div>
+                  <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                    <select onchange="GlobeTrotterState.updateTravelLeg(${index}, 'mode', this.value)" class="select-control w-full">
+                      ${['flight', 'train', 'bus', 'car', 'ferry'].map(mode => `<option value="${mode}" ${leg.mode === mode ? 'selected' : ''}>${mode}</option>`).join('')}
+                    </select>
+                    <input type="number" min="0" value="${leg.cost || 0}" onchange="GlobeTrotterState.updateTravelLeg(${index}, 'cost', this.value)" class="input text-xs" placeholder="Cost" />
+                    <input type="date" value="${leg.depart_date || ''}" onchange="GlobeTrotterState.updateTravelLeg(${index}, 'depart_date', this.value)" class="input text-xs" />
+                    <input type="number" min="0" step="0.5" value="${leg.duration_hours || 0}" onchange="GlobeTrotterState.updateTravelLeg(${index}, 'duration_hours', this.value)" class="input text-xs" placeholder="Hours" />
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      ` : ''}
     `;
   }
 
@@ -993,12 +1063,31 @@ class GlobeTrotterUIClass {
 
   // ==================== SAVED TRIPS & PUBLIC VIEW ====================
 
+  renderTimelineTabs() {
+    const container = document.getElementById('timeline-status-tabs');
+    if (!container) return;
+    const active = this.state.getState().timelineStatus || 'all';
+    const tabs = [
+      ['all', 'All', 'layers'],
+      ['upcoming', 'Upcoming', 'calendar-plus'],
+      ['ongoing', 'Ongoing', 'activity'],
+      ['completed', 'Completed', 'check-circle-2']
+    ];
+    container.innerHTML = tabs.map(([status, label, icon]) => `
+      <button onclick="GlobeTrotterState.setTimelineStatus('${status}')" class="chip text-xs py-1 px-2.5 ${active === status ? 'active' : ''}">
+        <i data-lucide="${icon}" class="w-3.5 h-3.5"></i> ${label}
+      </button>
+    `).join('');
+  }
+
   renderSavedTrips() {
     const container = document.getElementById('saved-trips-container');
     if (!container) return;
 
     const saved = this.state.getState().savedTrips;
     const currency = this.state.getState().currency;
+    const activeStatus = this.state.getState().timelineStatus || 'all';
+    this.renderTimelineTabs();
 
     if (!this.state.isAuthenticated()) {
       container.innerHTML = `
@@ -1019,7 +1108,7 @@ class GlobeTrotterUIClass {
         <div class="text-center py-16 text-dim col-span-full">
           <i data-lucide="bookmark-x" class="w-12 h-12 mx-auto mb-3 text-dim"></i>
           <h3 class="text-lg font-bold text-primary">No saved trips yet</h3>
-          <p class="text-sm mt-1">Configure your custom itinerary and click "Save Trip" to store it via the API.</p>
+          <p class="text-sm mt-1">${activeStatus === 'all' ? 'Configure your custom itinerary and click "Save Trip" to store it via the API.' : `No ${activeStatus} trips match this timeline tab.`}</p>
           <button onclick="GlobeTrotterState.setView('planner')" class="btn-primary mt-4">
             Go to Planner
           </button>
@@ -1033,7 +1122,11 @@ class GlobeTrotterUIClass {
       const routeCities = stops.map(stop => stop.city?.name).filter(Boolean);
       const city = stops[0] && stops[0].city ? stops[0].city : CITIES_DATA[0];
       const actCount = stops.reduce((sum, stop) => sum + ((stop.activities || []).length), 0);
+      const hotelCount = stops.reduce((sum, stop) => sum + ((stop.hotels || []).length), 0);
+      const legCount = (trip.legs || []).length;
       const routeLabel = routeCities.length ? routeCities.join(' → ') : `${city.name || 'Trip'}, ${city.state || ''}`;
+      const visibility = trip.visibility || (trip.is_public ? 'public' : 'private');
+      const status = trip.status || 'upcoming';
 
       return `
         <div class="surface-elevated p-5 flex flex-col justify-between">
@@ -1043,25 +1136,29 @@ class GlobeTrotterUIClass {
                 <p class="eyebrow">${routeLabel}</p>
                 <h4 class="text-xl font-bold text-primary mt-0.5">${trip.name}</h4>
               </div>
-              <button onclick="GlobeTrotterApp.deleteTrip(${trip.id})" class="text-dim hover:text-rose-500 p-1 transition cursor-pointer" title="Delete Trip">
-                <i data-lucide="trash-2" class="w-4 h-4"></i>
-              </button>
+              <div class="flex items-center gap-1">
+                <span class="chip text-[10px] ${status === 'ongoing' ? 'active' : ''}">${status}</span>
+                <button onclick="GlobeTrotterApp.deleteTrip(${trip.id})" class="text-dim hover:text-rose-500 p-1 transition cursor-pointer" title="Delete Trip">
+                  <i data-lucide="trash-2" class="w-4 h-4"></i>
+                </button>
+              </div>
             </div>
             
             <p class="text-xs text-dim mb-3">
-              ${trip.start_date || '2026-09-01'} to ${trip.end_date || '2026-09-04'} • ${trip.destination_count || stops.length || 1} Stops • ${actCount} Activities
+              ${trip.start_date || 'No start date'} to ${trip.end_date || 'No end date'} • ${trip.destination_count || stops.length || 1} Stops • ${actCount} Activities • ${hotelCount} Stays • ${legCount} Legs
             </p>
 
             <div class="p-3 rounded-[var(--radius-control)] surface-inset mb-4 text-xs space-y-2">
-              <div class="flex justify-between text-dim">
+              <div class="flex justify-between items-center gap-3 text-dim">
                 <span>Visibility:</span>
-                <label class="flex items-center gap-1.5 cursor-pointer">
-                  <input type="checkbox" ${trip.is_public ? 'checked' : ''} onchange="GlobeTrotterApp.handleTogglePublic(${trip.id}, this.checked)" class="custom-checkbox" />
-                  <span class="font-medium ${trip.is_public ? 'text-[var(--cyan)] font-bold' : 'text-dim'}">${trip.is_public ? 'Public' : 'Private'}</span>
-                </label>
+                <select onchange="GlobeTrotterApp.handleVisibilityChange(${trip.id}, this.value)" class="select-control text-xs py-1">
+                  <option value="private" ${visibility === 'private' ? 'selected' : ''}>Private</option>
+                  <option value="friends" ${visibility === 'friends' ? 'selected' : ''}>Friends only</option>
+                  <option value="public" ${visibility === 'public' ? 'selected' : ''}>Public</option>
+                </select>
               </div>
 
-              ${trip.is_public && trip.share_slug ? `
+              ${visibility === 'public' && trip.share_slug ? `
                 <div class="flex justify-between items-center text-dim border-t border-[var(--line)] pt-1.5">
                   <span>Public Link:</span>
                   <button onclick="GlobeTrotterApp.openPublicTrip('${trip.share_slug}')" class="text-[var(--cyan)] font-semibold hover:underline flex items-center gap-1">
@@ -1076,13 +1173,197 @@ class GlobeTrotterUIClass {
             <button onclick="GlobeTrotterApp.loadAndOpenTrip(${trip.id})" class="btn-primary text-xs">
               <i data-lucide="folder-open" class="w-3.5 h-3.5"></i> Load Trip
             </button>
-            <button onclick="GlobeTrotterExport.printItinerary()" class="btn-secondary text-xs">
-              <i data-lucide="printer" class="w-3.5 h-3.5"></i> Print / PDF
+            <button onclick="GlobeTrotterApp.copyTripToMyAccount(${trip.id})" class="btn-secondary text-xs">
+              <i data-lucide="copy" class="w-3.5 h-3.5"></i> Clone
             </button>
           </div>
         </div>
       `;
     }).join('');
+  }
+
+  renderTripMiniCard(trip, actionButton = '') {
+    const stops = (trip.stops || []).slice().sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
+    const routeCities = stops.map(stop => stop.city?.name).filter(Boolean);
+    const routeLabel = routeCities.length ? routeCities.join(' → ') : `${trip.destination_count || 0} destinations`;
+    const owner = trip.owner?.name ? ` by ${trip.owner.name}` : '';
+    return `
+      <article class="surface-elevated p-5 flex flex-col justify-between gap-4">
+        <div>
+          <div class="flex items-start justify-between gap-3 mb-2">
+            <div>
+              <p class="eyebrow">${routeLabel}${owner}</p>
+              <h4 class="text-lg font-bold text-primary">${trip.name}</h4>
+            </div>
+            <span class="chip text-[10px] ${trip.status === 'ongoing' ? 'active' : ''}">${trip.status || 'upcoming'}</span>
+          </div>
+          <p class="text-xs text-dim">${trip.start_date || 'No start'} to ${trip.end_date || 'No end'} • ${trip.destination_count || stops.length || 0} stops</p>
+          ${trip.description ? `<p class="text-xs text-dim mt-3 line-clamp-2">${trip.description}</p>` : ''}
+        </div>
+        <div class="grid grid-cols-2 gap-2 pt-3 border-t border-[var(--line)]">
+          ${trip.share_slug ? `
+            <button onclick="GlobeTrotterApp.openPublicTrip('${trip.share_slug}')" class="btn-secondary text-xs">
+              <i data-lucide="external-link" class="w-3.5 h-3.5"></i> View
+            </button>
+          ` : `
+            <button onclick="GlobeTrotterApp.loadAndOpenTrip(${trip.id})" class="btn-secondary text-xs">
+              <i data-lucide="folder-open" class="w-3.5 h-3.5"></i> Open
+            </button>
+          `}
+          ${actionButton || `
+            <button onclick="GlobeTrotterApp.copyTripToMyAccount(${trip.id})" class="btn-primary text-xs">
+              <i data-lucide="copy" class="w-3.5 h-3.5"></i> Copy Trip
+            </button>
+          `}
+        </div>
+      </article>
+    `;
+  }
+
+  renderCommunityTrips() {
+    const container = document.getElementById('community-trips-container');
+    if (!container) return;
+    const state = this.state.getState();
+
+    if (state.communityLoading) {
+      container.innerHTML = `<div class="col-span-full text-center py-16 text-dim">Loading public trips...</div>`;
+      return;
+    }
+
+    if (!state.communityTrips.length) {
+      container.innerHTML = `
+        <div class="text-center py-16 text-dim col-span-full">
+          <i data-lucide="globe-2" class="w-12 h-12 mx-auto mb-3 text-dim"></i>
+          <h3 class="text-lg font-bold text-primary">No public trips yet</h3>
+          <p class="text-sm mt-1">Trips marked Public will appear here for the community to copy.</p>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = state.communityTrips.map(trip => this.renderTripMiniCard(trip)).join('');
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  renderFriendsHub() {
+    const container = document.getElementById('friends-container');
+    if (!container) return;
+    const state = this.state.getState();
+
+    if (!this.state.isAuthenticated()) {
+      container.innerHTML = `
+        <div class="text-center py-16 text-dim">
+          <i data-lucide="lock" class="w-12 h-12 mx-auto mb-3 text-dim"></i>
+          <h3 class="text-lg font-bold text-primary">Log in to connect with friends</h3>
+          <p class="text-sm mt-1">Friend requests and friends-only trips are tied to your account.</p>
+          <button onclick="GlobeTrotterUI.openAuthModal('login')" class="btn-primary mt-4">Log In / Sign Up</button>
+        </div>
+      `;
+      return;
+    }
+
+    const requests = state.friendRequests || [];
+    const friends = state.friends || [];
+    const searchResults = state.friendSearchResults || [];
+    const friendTrips = state.friendTrips || [];
+    const selectedFriend = state.selectedFriend;
+
+    container.innerHTML = `
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div class="lg:col-span-5 space-y-6">
+          <section class="surface p-5 space-y-3">
+            <div>
+              <span class="eyebrow">GET /api/users/search?q=</span>
+              <h3 class="text-sm font-bold uppercase tracking-wider text-[var(--cyan)] flex items-center gap-2">
+                <i data-lucide="user-plus" class="w-4 h-4"></i> Find Travelers
+              </h3>
+            </div>
+            <form onsubmit="event.preventDefault(); GlobeTrotterApp.searchUsersForFriends(this.q.value);" class="flex gap-2">
+              <input name="q" class="input flex-1 text-xs" placeholder="Search by name or email" />
+              <button class="btn-primary text-xs" type="submit">Search</button>
+            </form>
+            <div class="space-y-2">
+              ${searchResults.length ? searchResults.map(user => `
+                <div class="surface-inset p-3 rounded-[var(--radius-control)] flex items-center justify-between gap-3 text-xs">
+                  <div>
+                    <span class="font-bold text-primary block">${user.name}</span>
+                    <span class="text-dim">${user.email}</span>
+                  </div>
+                  <button onclick="GlobeTrotterApp.sendFriendRequest(${user.id})" class="btn-secondary text-xs">
+                    <i data-lucide="send" class="w-3.5 h-3.5"></i> Request
+                  </button>
+                </div>
+              `).join('') : '<p class="text-xs text-dim">Search for another user to send a friend request.</p>'}
+            </div>
+          </section>
+
+          <section class="surface p-5 space-y-3">
+            <div>
+              <span class="eyebrow">GET /api/friends/requests</span>
+              <h3 class="text-sm font-bold uppercase tracking-wider text-[var(--cyan)] flex items-center gap-2">
+                <i data-lucide="inbox" class="w-4 h-4"></i> Incoming Requests
+              </h3>
+            </div>
+            <div class="space-y-2">
+              ${requests.length ? requests.map(req => `
+                <div class="surface-inset p-3 rounded-[var(--radius-control)] flex items-center justify-between gap-3 text-xs">
+                  <div>
+                    <span class="font-bold text-primary block">${req.user?.name || 'Traveler'}</span>
+                    <span class="text-dim">${req.direction || 'incoming'} • ${req.status}</span>
+                  </div>
+                  <div class="flex gap-1">
+                    <button onclick="GlobeTrotterApp.acceptFriendRequest(${req.id})" class="btn-primary text-xs">Accept</button>
+                    <button onclick="GlobeTrotterApp.deleteFriendship(${req.id})" class="btn-secondary text-xs">Decline</button>
+                  </div>
+                </div>
+              `).join('') : '<p class="text-xs text-dim">No pending incoming requests.</p>'}
+            </div>
+          </section>
+        </div>
+
+        <div class="lg:col-span-7 space-y-6">
+          <section class="surface p-5 space-y-3">
+            <div>
+              <span class="eyebrow">GET /api/friends</span>
+              <h3 class="text-sm font-bold uppercase tracking-wider text-[var(--cyan)] flex items-center gap-2">
+                <i data-lucide="users" class="w-4 h-4"></i> My Friends
+              </h3>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              ${friends.length ? friends.map(friendship => `
+                <div class="surface-inset p-3 rounded-[var(--radius-control)] border border-[var(--line)] text-xs space-y-3">
+                  <div class="flex items-center justify-between gap-3">
+                    <div>
+                      <span class="font-bold text-primary block">${friendship.user?.name || 'Traveler'}</span>
+                      <span class="text-dim">${friendship.status || 'accepted'}</span>
+                    </div>
+                    <button onclick="GlobeTrotterApp.deleteFriendship(${friendship.id})" class="text-dim hover:text-rose-500 p-1" title="Unfriend">
+                      <i data-lucide="user-minus" class="w-4 h-4"></i>
+                    </button>
+                  </div>
+                  <button onclick="GlobeTrotterApp.viewFriendTrips(${friendship.user?.id})" class="btn-secondary text-xs w-full">
+                    <i data-lucide="route" class="w-3.5 h-3.5"></i> View Trips
+                  </button>
+                </div>
+              `).join('') : '<p class="text-xs text-dim col-span-full">Accepted friends will appear here.</p>'}
+            </div>
+          </section>
+
+          <section class="space-y-3">
+            <div>
+              <span class="eyebrow">GET /api/users/{id}/trips</span>
+              <h3 class="text-sm font-bold uppercase tracking-wider text-[var(--cyan)] flex items-center gap-2">
+                <i data-lucide="map" class="w-4 h-4"></i> ${selectedFriend ? `${selectedFriend.name}'s Visible Trips` : 'Friend Trips'}
+              </h3>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              ${friendTrips.length ? friendTrips.map(trip => this.renderTripMiniCard(trip)).join('') : '<div class="surface p-5 text-xs text-dim">Select a friend to view trips they have shared with you.</div>'}
+            </div>
+          </section>
+        </div>
+      </div>
+    `;
+    if (window.lucide) window.lucide.createIcons();
   }
 
   renderPublicTripView(trip) {

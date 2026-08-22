@@ -40,7 +40,7 @@ class GlobeTrotterAppClass {
     if (hash.startsWith('public/')) {
       const slug = hash.replace('public/', '');
       this.state.setView('public', { slug });
-    } else if (['explore', 'planner', 'saved', 'comparison', 'profile'].includes(hash)) {
+    } else if (['explore', 'planner', 'saved', 'friends', 'community', 'comparison', 'profile'].includes(hash)) {
       this.state.setView(hash);
     }
   }
@@ -93,6 +93,13 @@ class GlobeTrotterAppClass {
     };
     if (foodInput) foodInput.addEventListener('input', updateAllowances);
     if (transportInput) transportInput.addEventListener('input', updateAllowances);
+
+    const visibilityInput = document.getElementById('input-trip-visibility');
+    if (visibilityInput) {
+      visibilityInput.addEventListener('change', (e) => {
+        this.state.setPlanVisibility(e.target.value);
+      });
+    }
 
     // Save Trip Button
     const saveTripBtn = document.getElementById('btn-save-trip');
@@ -224,6 +231,19 @@ class GlobeTrotterAppClass {
     }
   }
 
+  async handleVisibilityChange(tripId, visibility) {
+    try {
+      const updated = await this.state.updateTripVisibility(tripId, visibility);
+      const label = visibility === 'friends' ? 'Friends only' : visibility.charAt(0).toUpperCase() + visibility.slice(1);
+      this.showToast(`Trip visibility set to ${label}`, 'info');
+      if (updated.share_slug && visibility === 'public') {
+        this.showToast('Public share link is ready on the trip card', 'success');
+      }
+    } catch (e) {
+      this.showToast(`Error updating trip visibility: ${e.message}`, 'warning');
+    }
+  }
+
   openPublicTrip(slug) {
     window.location.hash = `public/${slug}`;
   }
@@ -243,14 +263,58 @@ class GlobeTrotterAppClass {
     }
 
     try {
-      const currentPublic = this.state.state.publicTrip;
-      if (currentPublic) {
-        const trip = await this.state.saveCurrentTrip(`Copy of ${currentPublic.name}`);
-        this.showToast('Trip copied to your saved trips!', 'success');
+      const result = await this.state.cloneVisibleTrip(tripId);
+      this.showToast(result.message || 'Trip copied to your saved trips!', 'success');
+      if (result.id) {
+        await this.loadAndOpenTrip(result.id);
+      } else {
         this.state.setView('saved');
       }
     } catch (e) {
       this.showToast(`Error copying trip: ${e.message}`, 'warning');
+    }
+  }
+
+  async searchUsersForFriends(query) {
+    try {
+      await this.state.searchFriends(query);
+    } catch (e) {
+      this.showToast(`User search failed: ${e.message}`, 'warning');
+    }
+  }
+
+  async sendFriendRequest(userId) {
+    try {
+      await this.state.sendFriendRequest(userId);
+      this.showToast('Friend request sent', 'success');
+    } catch (e) {
+      this.showToast(`Friend request failed: ${e.message}`, 'warning');
+    }
+  }
+
+  async acceptFriendRequest(friendshipId) {
+    try {
+      await this.state.acceptFriendRequest(friendshipId);
+      this.showToast('Friend request accepted', 'success');
+    } catch (e) {
+      this.showToast(`Unable to accept request: ${e.message}`, 'warning');
+    }
+  }
+
+  async deleteFriendship(friendshipId) {
+    try {
+      await this.state.deleteFriendship(friendshipId);
+      this.showToast('Friendship updated', 'info');
+    } catch (e) {
+      this.showToast(`Unable to update friendship: ${e.message}`, 'warning');
+    }
+  }
+
+  async viewFriendTrips(userId) {
+    try {
+      await this.state.loadFriendTrips(userId);
+    } catch (e) {
+      this.showToast(`Unable to load friend trips: ${e.message}`, 'warning');
     }
   }
 

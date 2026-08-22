@@ -97,7 +97,9 @@ class GlobeTrotterStateClass {
       friendRequests: [],
       friendSearchResults: [],
       friendTrips: [],
-      selectedFriend: null
+      selectedFriend: null,
+      friendsLoading: false,
+      communityLoading: false
     };
 
     this.subscribers = [];
@@ -492,6 +494,12 @@ class GlobeTrotterStateClass {
     this.notify('TAXES_TOGGLED', enabled);
   }
 
+  setPlanVisibility(visibility) {
+    this.state.tripPlan.visibility = ['private', 'friends', 'public'].includes(visibility) ? visibility : 'private';
+    this.state.tripPlan.is_public = this.state.tripPlan.visibility === 'public';
+    this.notify('VISIBILITY_CHANGED', this.state.tripPlan.visibility);
+  }
+
   setDailyAllowances(foodPerPerson, localTransport) {
     this.state.tripPlan.dailyFoodBudgetPerPerson = Math.max(0, parseInt(foodPerPerson) || 0);
     this.state.tripPlan.dailyLocalTransport = Math.max(0, parseInt(localTransport) || 0);
@@ -591,7 +599,7 @@ class GlobeTrotterStateClass {
 
   // ==================== TRIPS API SYNC ====================
 
-  async loadSavedTrips() {
+  async loadSavedTrips(status = '') {
     if (!this.isAuthenticated()) {
       this.state.savedTrips = [];
       this.notify('SAVED_TRIPS_LOADED', []);
@@ -599,7 +607,7 @@ class GlobeTrotterStateClass {
     }
 
     try {
-      this.state.savedTrips = await this.api.getTrips();
+      this.state.savedTrips = await this.api.getTrips(status);
       this.notify('SAVED_TRIPS_LOADED', this.state.savedTrips);
     } catch (e) {
       console.warn('Failed to load trips from API:', e);
@@ -624,10 +632,13 @@ class GlobeTrotterStateClass {
       start_date: startDate,
       end_date: endDate,
       num_people: numPeople,
-      is_public: this.state.tripPlan.is_public || false
+      is_public: this.state.tripPlan.visibility === 'public',
+      visibility: this.state.tripPlan.visibility || 'private',
+      daily_meal_estimate: (this.state.tripPlan.dailyFoodBudgetPerPerson || 0) * numPeople
     };
 
     const createdTrip = await this.api.createTrip(tripPayload);
+    const savedStops = [];
 
     for (const [index, planStop] of stops.entries()) {
       const savedStop = await this.api.addStop(createdTrip.id, {
@@ -640,6 +651,14 @@ class GlobeTrotterStateClass {
       if (savedStop && savedStop.id && savedStop.order_index !== index) {
         await this.api.updateStop(savedStop.id, { order_index: index });
       }
+      savedStops[index] = savedStop;
+
+      if (planStop.hotelId) {
+        await this.api.addStopHotel(savedStop.id, {
+          hotel_id: planStop.hotelId,
+          nights: planStop.nights || null
+        });
+      }
 
       for (const actId of planStop.activityIds || []) {
         await this.api.addStopActivity(savedStop.id, {
@@ -647,6 +666,11 @@ class GlobeTrotterStateClass {
           num_people: numPeople
         });
       }
+    }
+
+    this.rebuildTravelLegs();
+    for (const leg of this.state.tripPlan.legs || []) {
+      await this.api.addTripLeg(createdTrip.id, leg);
     }
 
     this.state.tripPlan.id = createdTrip.id;
@@ -674,7 +698,7 @@ class GlobeTrotterStateClass {
           id: stop.id,
           clientId: `api-stop-${stop.id || index}`,
           cityId: stopCityId,
-          hotelId: stop.hotel?.id || HOTELS_DATA.find(h => h.city_id === stopCityId)?.id || null,
+          hotelId: stop.hotels?.[0]?.hotel_id || stop.hotel?.id || HOTELS_DATA.find(h => h.city_id === stopCityId)?.id || null,
           activityIds: actIds,
           start_date: stopStart,
           end_date: stopEnd,
@@ -696,14 +720,24 @@ class GlobeTrotterStateClass {
         adults: 2,
         children: 0,
         is_public: trip.is_public,
+        visibility: trip.visibility || (trip.is_public ? 'public' : 'private'),
         share_slug: trip.share_slug,
         includeTaxes: true,
-        dailyFoodBudgetPerPerson: 1000,
+        dailyFoodBudgetPerPerson: trip.daily_meal_estimate && trip.num_people ? Math.round(trip.daily_meal_estimate / trip.num_people) : 1000,
         dailyLocalTransport: 600,
         activePreset: null,
         activeStopIndex: 0,
         daySchedule: {},
-        stops: loadedStops
+        stops: loadedStops,
+        legs: (trip.legs || []).map(leg => ({
+          id: leg.id,
+          from_city_id: leg.from_city?.id,
+          to_city_id: leg.to_city?.id,
+          mode: leg.mode || 'train',
+          cost: leg.cost || 0,
+          depart_date: leg.depart_date || null,
+          duration_hours: leg.duration_hours || 0
+        }))
       };
 
       this.syncTripPlanFromActiveStop();
@@ -725,14 +759,24 @@ class GlobeTrotterStateClass {
 
   async toggleTripPublic(tripId, isPublic) {
     const updated = await this.api.updateTrip(tripId, { is_public: isPublic });
-    await this.loadSavedTrips();
+    await this.loadSavedTrips(this.state.timelineStatus === 'all' ? '' : this.state.timelineStatus);
+    this.notify('TRIP_UPDATED', updated);
+    return updated;
+  }
+
+  async updateTripVisibility(tripId, visibility) {
+    const updated = await this.api.updateTrip(tripId, {
+      visibility,
+      is_public: visibility === 'public'
+    });
+    await this.loadSavedTrips(this.state.timelineStatus === 'all' ? '' : this.state.timelineStatus);
     this.notify('TRIP_UPDATED', updated);
     return updated;
   }
 
   async deleteSavedTrip(tripId) {
     await this.api.deleteTrip(tripId);
-    await this.loadSavedTrips();
+    await this.loadSavedTrips(this.state.timelineStatus === 'all' ? '' : this.state.timelineStatus);
     this.notify('TRIP_DELETED', tripId);
   }
 
@@ -745,6 +789,95 @@ class GlobeTrotterStateClass {
       this.state.publicTrip = null;
       this.notify('PUBLIC_TRIP_ERROR', e.message);
     }
+  }
+
+  async loadCommunityTrips() {
+    this.state.communityLoading = true;
+    this.notify('COMMUNITY_TRIPS_LOADING', true);
+    try {
+      this.state.communityTrips = await this.api.getCommunityTrips();
+      this.notify('COMMUNITY_TRIPS_LOADED', this.state.communityTrips);
+    } catch (e) {
+      this.notify('COMMUNITY_TRIPS_ERROR', e.message);
+    } finally {
+      this.state.communityLoading = false;
+      this.notify('COMMUNITY_TRIPS_LOADING', false);
+    }
+  }
+
+  async cloneVisibleTrip(tripId) {
+    const result = await this.api.cloneTrip(tripId);
+    await this.loadSavedTrips();
+    this.notify('TRIP_CLONED', result);
+    return result;
+  }
+
+  async loadFriendsHub() {
+    if (!this.isAuthenticated()) {
+      this.state.friends = [];
+      this.state.friendRequests = [];
+      this.state.friendTrips = [];
+      this.state.selectedFriend = null;
+      this.notify('FRIENDS_LOADED', null);
+      return;
+    }
+
+    this.state.friendsLoading = true;
+    this.notify('FRIENDS_LOADING', true);
+    try {
+      const [friends, requests] = await Promise.all([
+        this.api.getFriends(),
+        this.api.getFriendRequests()
+      ]);
+      this.state.friends = friends;
+      this.state.friendRequests = requests;
+      this.notify('FRIENDS_LOADED', { friends, requests });
+    } catch (e) {
+      this.notify('FRIENDS_ERROR', e.message);
+    } finally {
+      this.state.friendsLoading = false;
+      this.notify('FRIENDS_LOADING', false);
+    }
+  }
+
+  async searchFriends(q) {
+    if (!q || !q.trim()) {
+      this.state.friendSearchResults = [];
+      this.notify('FRIEND_SEARCH_UPDATED', []);
+      return [];
+    }
+    const results = await this.api.searchUsers(q.trim());
+    this.state.friendSearchResults = results;
+    this.notify('FRIEND_SEARCH_UPDATED', results);
+    return results;
+  }
+
+  async sendFriendRequest(userId) {
+    const result = await this.api.sendFriendRequest(userId);
+    await this.loadFriendsHub();
+    this.notify('FRIEND_REQUEST_SENT', result);
+    return result;
+  }
+
+  async acceptFriendRequest(friendshipId) {
+    const result = await this.api.acceptFriendRequest(friendshipId);
+    await this.loadFriendsHub();
+    this.notify('FRIEND_REQUEST_ACCEPTED', result);
+    return result;
+  }
+
+  async deleteFriendship(friendshipId) {
+    await this.api.deleteFriendship(friendshipId);
+    await this.loadFriendsHub();
+    this.notify('FRIENDSHIP_DELETED', friendshipId);
+  }
+
+  async loadFriendTrips(userId) {
+    const friend = this.state.friends.find(f => String(f.user?.id) === String(userId))?.user || null;
+    this.state.selectedFriend = friend;
+    this.state.friendTrips = await this.api.getUserTrips(userId);
+    this.notify('FRIEND_TRIPS_LOADED', { friend, trips: this.state.friendTrips });
+    return this.state.friendTrips;
   }
 
   toggleComparisonCity(cityId) {

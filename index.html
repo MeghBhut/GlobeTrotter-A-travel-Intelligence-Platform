@@ -68,6 +68,12 @@
         <button data-view="saved" class="nav-tab nav-link flex items-center gap-1.5 cursor-pointer">
           <i data-lucide="bookmark" class="w-3.5 h-3.5"></i> My Trips
         </button>
+        <button data-view="friends" class="nav-tab nav-link flex items-center gap-1.5 cursor-pointer">
+          <i data-lucide="users" class="w-3.5 h-3.5"></i> Friends
+        </button>
+        <button data-view="community" class="nav-tab nav-link flex items-center gap-1.5 cursor-pointer">
+          <i data-lucide="globe-2" class="w-3.5 h-3.5"></i> Community
+        </button>
       </nav>
 
       <!-- Right Controls: Backend Status, Currency Switcher, Theme Toggle, User Profile -->
@@ -119,6 +125,12 @@
       </button>
       <button data-view="saved" class="nav-tab nav-link py-1 px-2 flex flex-col items-center">
         <i data-lucide="bookmark" class="w-4 h-4 mb-0.5"></i> Trips
+      </button>
+      <button data-view="friends" class="nav-tab nav-link py-1 px-2 flex flex-col items-center">
+        <i data-lucide="users" class="w-4 h-4 mb-0.5"></i> Friends
+      </button>
+      <button data-view="community" class="nav-tab nav-link py-1 px-2 flex flex-col items-center">
+        <i data-lucide="globe-2" class="w-4 h-4 mb-0.5"></i> Social
       </button>
       <button data-view="profile" class="nav-tab nav-link py-1 px-2 flex flex-col items-center">
         <i data-lucide="user" class="w-4 h-4 mb-0.5"></i> Account
@@ -348,6 +360,17 @@
                 <input id="input-transport-rate" type="range" min="100" max="3000" step="50" value="600" oninput="document.getElementById('label-transport-rate').textContent = this.value" class="w-full accent-[var(--cyan)] cursor-pointer" />
               </div>
             </div>
+
+            <div class="pt-3 border-t border-[var(--line)] grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+              <div>
+                <label for="input-trip-visibility" class="block text-dim font-medium mb-1.5">Trip Visibility:</label>
+                <select id="input-trip-visibility" class="select-control w-full">
+                  <option value="private">Private</option>
+                  <option value="friends">Friends only</option>
+                  <option value="public">Public community trip</option>
+                </select>
+              </div>
+            </div>
           </div>
 
           <!-- Hotel Selection Section -->
@@ -506,14 +529,19 @@
 
     <!-- ==================== VIEW 3: MY SAVED TRIPS ==================== -->
     <section id="view-saved" class="hidden space-y-6">
-      <div class="flex justify-between items-center">
+      <div class="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4">
         <div>
-          <span class="eyebrow">GET /api/trips</span>
-          <h2 class="text-2xl font-bold">My Trips</h2>
+          <span class="eyebrow">GET /api/trips?status=</span>
+          <h2 class="text-2xl font-bold">My Trips Timeline</h2>
         </div>
-        <button onclick="GlobeTrotterState.setView('planner')" class="btn-primary">
-          <i data-lucide="plus" class="w-4 h-4"></i> Create New Plan
-        </button>
+        <div class="flex flex-wrap items-center gap-2">
+          <div id="timeline-status-tabs" class="flex items-center gap-1.5 surface-inset p-1 rounded-[var(--radius-control)]">
+            <!-- Rendered dynamically -->
+          </div>
+          <button onclick="GlobeTrotterState.setView('planner')" class="btn-primary">
+            <i data-lucide="plus" class="w-4 h-4"></i> Create New Plan
+          </button>
+        </div>
       </div>
 
       <div id="saved-trips-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -521,7 +549,38 @@
       </div>
     </section>
 
-    <!-- ==================== VIEW 4: COMPARE CITIES ==================== -->
+    <!-- ==================== VIEW 4: FRIENDS HUB ==================== -->
+    <section id="view-friends" class="hidden space-y-6">
+      <div class="flex justify-between items-center">
+        <div>
+          <span class="eyebrow">Friends & Shared Trips</span>
+          <h2 class="text-2xl font-bold">Friends</h2>
+        </div>
+      </div>
+
+      <div id="friends-container" class="space-y-6">
+        <!-- Rendered dynamically by js/ui.js -->
+      </div>
+    </section>
+
+    <!-- ==================== VIEW 5: COMMUNITY PUBLIC TRIPS ==================== -->
+    <section id="view-community" class="hidden space-y-6">
+      <div class="flex justify-between items-center">
+        <div>
+          <span class="eyebrow">GET /api/community/trips</span>
+          <h2 class="text-2xl font-bold">Community Trips</h2>
+        </div>
+        <button onclick="GlobeTrotterState.loadCommunityTrips()" class="btn-secondary">
+          <i data-lucide="refresh-cw" class="w-4 h-4"></i> Refresh
+        </button>
+      </div>
+
+      <div id="community-trips-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <!-- Rendered dynamically by js/ui.js -->
+      </div>
+    </section>
+
+    <!-- ==================== VIEW 6: COMPARE CITIES ==================== -->
     <section id="view-comparison" class="hidden space-y-6">
       <div class="surface p-6 space-y-4">
         <div>
@@ -540,7 +599,7 @@
       </div>
     </section>
 
-    <!-- ==================== VIEW 5: USER PROFILE & SETTINGS ==================== -->
+    <!-- ==================== VIEW 7: USER PROFILE & SETTINGS ==================== -->
     <section id="view-profile" class="hidden space-y-6">
       <div class="flex justify-between items-center">
         <div>
@@ -554,7 +613,7 @@
       </div>
     </section>
 
-    <!-- ==================== VIEW 6: PUBLIC SHARED ITINERARY ==================== -->
+    <!-- ==================== VIEW 8: PUBLIC SHARED ITINERARY ==================== -->
     <section id="view-public" class="hidden space-y-6">
       <div id="public-trip-container">
         <!-- Rendered dynamically by js/ui.js -->

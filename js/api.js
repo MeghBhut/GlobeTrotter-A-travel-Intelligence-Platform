@@ -303,6 +303,7 @@ class GlobeTrotterAPI {
           description: tripData.description || "",
           start_date: tripData.start_date || null,
           end_date: tripData.end_date || null,
+          num_people: tripData.num_people || 1,
           daily_meal_estimate: tripData.daily_meal_estimate || 0,
           visibility: tripData.visibility || (tripData.is_public ? "public" : "private")
         })
@@ -319,6 +320,7 @@ class GlobeTrotterAPI {
       description: tripData.description || "",
       start_date: tripData.start_date || new Date().toISOString().split('T')[0],
       end_date: tripData.end_date || new Date(Date.now() + 3*86400000).toISOString().split('T')[0],
+      num_people: tripData.num_people || 1,
       is_public: tripData.is_public || false,
       visibility: tripData.visibility || (tripData.is_public ? "public" : "private"),
       status: "upcoming",
@@ -631,6 +633,12 @@ class GlobeTrotterAPI {
 
     const trip = await this.getTrip(numTripId);
     let activitiesTotal = 0;
+    let hotelsTotal = 0;
+    let transportTotal = (trip.legs || []).reduce((sum, leg) => sum + (parseInt(leg.cost) || 0), 0);
+    const tripDays = trip.start_date && trip.end_date
+      ? Math.max(1, Math.round((new Date(trip.end_date) - new Date(trip.start_date)) / 86400000) + 1)
+      : 1;
+    const mealsTotal = (parseInt(trip.daily_meal_estimate) || 0) * tripDays;
     const perDayMap = {};
 
     if (trip.stops) {
@@ -639,6 +647,11 @@ class GlobeTrotterAPI {
         if (stop.activities) {
           stop.activities.forEach(a => {
             stopCost += (a.price_per_person || 0) * (a.num_people || 1);
+          });
+        }
+        if (stop.hotels) {
+          stop.hotels.forEach(h => {
+            hotelsTotal += (h.price_per_night || 0) * (h.nights || 1);
           });
         }
         activitiesTotal += stopCost;
@@ -657,17 +670,18 @@ class GlobeTrotterAPI {
     }
 
     const perDayList = Object.keys(perDayMap).sort().map(d => ({ date: d, amount: perDayMap[d] }));
-    const avgPerDay = perDayList.length ? Math.round(activitiesTotal / perDayList.length) : activitiesTotal;
+    const total = activitiesTotal + hotelsTotal + transportTotal + mealsTotal;
+    const avgPerDay = perDayList.length ? Math.round(total / perDayList.length) : total;
 
     return {
       trip_id: numTripId,
       currency: "INR",
-      total: activitiesTotal,
+      total,
       breakdown: {
         activities: activitiesTotal,
-        hotels: 0,
-        transport: 0,
-        meals: 0
+        hotels: hotelsTotal,
+        transport: transportTotal,
+        meals: mealsTotal
       },
       per_day: perDayList,
       average_per_day: avgPerDay
@@ -770,7 +784,7 @@ class GlobeTrotterAPI {
   }
 
   async getCommunityTrips(limit = 30, offset = 0) {
-    if (this.isLiveBackend && this.token) {
+    if (this.isLiveBackend) {
       const res = await fetch(`${this.BASE_URL}/api/community/trips?limit=${limit}&offset=${offset}`, { headers: this.getAuthHeaders() });
       if (res.ok) return await res.json();
       const data = await res.json();
