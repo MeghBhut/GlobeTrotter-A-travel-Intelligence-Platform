@@ -5,10 +5,26 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from .. import models, schemas, access
+from .. import models, schemas, access, travel
 from ..auth import get_current_user
 
 router = APIRouter(prefix="/api", tags=["trips"])
+
+
+@router.get("/estimate/travel", response_model=schemas.TravelEstimateOut, tags=["travel"])
+def estimate_travel(
+    from_city_id: int,
+    to_city_id: int,
+    mode: str = "flight",
+    travelers: int = 1,
+    db: Session = Depends(get_db),
+):
+    """Estimate fare + duration between two cities (used to prefill a travel leg)."""
+    from_city = db.query(models.City).get(from_city_id)
+    to_city = db.query(models.City).get(to_city_id)
+    if from_city is None or to_city is None:
+        raise HTTPException(status_code=404, detail="City not found")
+    return travel.estimate(from_city, to_city, mode, travelers)
 
 
 def _clone_trip_for(source: models.Trip, new_owner_id: int, db: Session) -> models.Trip:
@@ -100,6 +116,8 @@ def create_trip(
         start_date=payload.start_date,
         end_date=payload.end_date,
         daily_meal_estimate=payload.daily_meal_estimate or 0,
+        travelers=payload.travelers or 1,
+        origin_city_id=payload.origin_city_id,
     )
     access.apply_visibility(trip, payload.visibility or "private")
     db.add(trip)
@@ -335,18 +353,25 @@ def add_leg(
     db: Session = Depends(get_db),
 ):
     trip = _owned_trip(trip_id, user, db)
-    for cid in (payload.from_city_id, payload.to_city_id):
-        if db.query(models.City).get(cid) is None:
-            raise HTTPException(status_code=400, detail=f"City {cid} not found")
+    from_city = db.query(models.City).get(payload.from_city_id)
+    to_city = db.query(models.City).get(payload.to_city_id)
+    if from_city is None or to_city is None:
+        raise HTTPException(status_code=400, detail="City not found")
+
+    # Auto-estimate fare and duration (from the trip's traveler count) when the
+    # client doesn't supply them.
+    est = travel.estimate(from_city, to_city, payload.mode, trip.travelers or 1)
+    cost = payload.cost if payload.cost is not None else est["total_fare"]
+    duration = payload.duration_hours if payload.duration_hours is not None else est["duration_hours"]
 
     leg = models.TripLeg(
         trip_id=trip.id,
         from_city_id=payload.from_city_id,
         to_city_id=payload.to_city_id,
         mode=payload.mode,
-        cost=payload.cost,
+        cost=cost,
         depart_date=payload.depart_date,
-        duration_hours=payload.duration_hours,
+        duration_hours=duration,
         order_index=len(trip.legs),
     )
     db.add(leg)

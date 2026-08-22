@@ -2,16 +2,23 @@
 
 Run from the backend/ folder:
     uvicorn app.main:app --reload
-Then open http://localhost:8000/docs
+Then open http://localhost:8000  (serves BOTH the app and the API — no separate
+frontend server or IP config needed). API docs at http://localhost:8000/docs
 """
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from .database import Base, engine, SessionLocal
-from .seed import seed
+from .seed import seed, CITY_COORDS
 from .routers import (
     cities, users, trips, budget, public, friends, community, calendar,
 )
+
+# The frontend (index.html, js/, css/) lives one level above backend/.
+FRONTEND_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 def _migrate() -> None:
@@ -31,11 +38,27 @@ def _migrate() -> None:
             conn.exec_driver_sql(
                 "UPDATE trips SET visibility='public' WHERE is_public=1"
             )
+        if "travelers" not in cols:
+            conn.exec_driver_sql("ALTER TABLE trips ADD COLUMN travelers INTEGER DEFAULT 1")
+        if "origin_city_id" not in cols:
+            conn.exec_driver_sql("ALTER TABLE trips ADD COLUMN origin_city_id INTEGER")
         sa_cols = [row[1] for row in conn.exec_driver_sql("PRAGMA table_info(stop_activities)")]
         if "scheduled_date" not in sa_cols:
             conn.exec_driver_sql("ALTER TABLE stop_activities ADD COLUMN scheduled_date DATE")
         if "slot" not in sa_cols:
             conn.exec_driver_sql("ALTER TABLE stop_activities ADD COLUMN slot VARCHAR")
+        # City coordinates (added for fare/distance) — add columns + backfill.
+        c_cols = [row[1] for row in conn.exec_driver_sql("PRAGMA table_info(cities)")]
+        if "latitude" not in c_cols:
+            conn.exec_driver_sql("ALTER TABLE cities ADD COLUMN latitude FLOAT")
+        if "longitude" not in c_cols:
+            conn.exec_driver_sql("ALTER TABLE cities ADD COLUMN longitude FLOAT")
+        for cid, (lat, lng) in CITY_COORDS.items():
+            conn.exec_driver_sql(
+                "UPDATE cities SET latitude=?, longitude=? "
+                "WHERE id=? AND (latitude IS NULL OR longitude IS NULL)",
+                (lat, lng, cid),
+            )
 
 
 # Create tables, run migrations, and load the seed catalog on startup.
@@ -72,6 +95,12 @@ app.include_router(community.router)
 app.include_router(calendar.router)
 
 
-@app.get("/", tags=["health"])
-def root():
+@app.get("/health", tags=["health"])
+def health():
     return {"status": "ok", "docs": "/docs"}
+
+
+# Serve the frontend from the SAME origin as the API (single server, no IP config).
+# Mounted LAST so /api/*, /docs, /health match first; everything else (index.html,
+# js/, css/) is served statically. Opening http://<host>:8000 loads the whole app.
+app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")

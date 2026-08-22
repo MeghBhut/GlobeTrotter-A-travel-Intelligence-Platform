@@ -519,3 +519,53 @@ trip span. Works for any trip you can view (yours, public, or a friend's).
 | `GET` | `/api/trips/{id}/calendar` | Activities grouped by date (for the calendar view) |
 | `PUT` | `/api/stop-activities/{id}` | Reschedule an activity (date / slot / num_people) |
 | `POST` | `/api/stops/{id}/activities` | Now accepts `scheduled_date` + `slot` |
+
+---
+
+# ==================== v5 ADDITIONS (Auto travel fares, travellers, home city, single-origin run) ====================
+
+## v5.1 Trip travellers + home (origin) city
+`POST /api/trips` and `PUT /api/trips/{id}` accept:
+- **`travelers`** (int, default 1) — number of people on the trip; drives per-person fares.
+- **`origin_city_id`** (int, optional) — the home city you start from (one of the 10 city ids).
+
+Trip objects now return `travelers`, `origin_city_id`, and (on detail) an `origin_city` object.
+City objects now include `latitude` / `longitude`.
+
+## v5.2 Travel fare estimate
+### `GET /api/estimate/travel?from_city_id=1&to_city_id=2&mode=flight&travelers=3`
+Estimates fare + duration from the great-circle distance between the two cities.
+`mode` = flight | train | bus | car | ferry.
+```json
+{
+  "from_city_id": 1, "to_city_id": 2, "mode": "flight", "travelers": 3,
+  "distance_km": 1148, "duration_hours": 4,
+  "fare_per_person": 8963, "total_fare": 26889
+}
+```
+- `total_fare` = `fare_per_person` × `travelers` (car is per-vehicle, not multiplied).
+- Use this to prefill the "add travel leg" form (e.g. home → first city, or city → city).
+
+## v5.3 Legs auto-estimate their fare
+`POST /api/trips/{id}/legs` — if you **omit `cost`** and/or **`duration_hours`**, the
+backend fills them in automatically from the estimate above, using the trip's
+`travelers`. Send explicit values to override. Transport is already summed into the
+budget (`breakdown.transport`) and the total.
+
+## v5.4 Single-origin run (no IP, evaluator-friendly)
+The backend now **serves the frontend too**. To run the whole app:
+```bash
+cd backend
+pip install -r requirements.txt
+uvicorn app.main:app        # or: uvicorn app.main:app --host 0.0.0.0  (for LAN)
+```
+Then open **http://localhost:8000** — the app loads and talks to its own API on the
+same origin. No separate frontend server, no IP to configure. Another PC on the LAN
+opens `http://<your-ip>:8000` and it just works (the frontend targets whatever host
+served it — never a hardcoded IP). `/docs` still serves the API docs.
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| `GET` | `/api/estimate/travel` | Fare + duration estimate between two cities |
+| `POST` | `/api/trips/{id}/legs` | Omit `cost`/`duration_hours` to auto-estimate |
+| `POST`/`PUT` | `/api/trips` · `/api/trips/{id}` | Now accept `travelers`, `origin_city_id` |

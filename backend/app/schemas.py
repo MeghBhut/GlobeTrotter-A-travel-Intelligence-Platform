@@ -12,6 +12,8 @@ class CityOut(BaseModel):
     name: str
     state: str
     country: str
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
 
 
 class ActivityOut(BaseModel):
@@ -70,6 +72,8 @@ class TripCreate(BaseModel):
     end_date: Optional[date] = None
     daily_meal_estimate: Optional[int] = 0
     visibility: Optional[str] = "private"  # private | friends | public
+    travelers: Optional[int] = 1
+    origin_city_id: Optional[int] = None
 
 
 class TripUpdate(BaseModel):
@@ -80,6 +84,8 @@ class TripUpdate(BaseModel):
     is_public: Optional[bool] = None  # legacy; maps to visibility
     visibility: Optional[str] = None  # private | friends | public
     daily_meal_estimate: Optional[int] = None
+    travelers: Optional[int] = None
+    origin_city_id: Optional[int] = None
 
 
 class TripOut(BaseModel):
@@ -95,6 +101,8 @@ class TripOut(BaseModel):
     share_slug: Optional[str] = None
     cover_photo_url: Optional[str] = None
     daily_meal_estimate: int = 0
+    travelers: int = 1
+    origin_city_id: Optional[int] = None
     destination_count: int
     owner: Optional[UserPublicOut] = None
 
@@ -167,9 +175,20 @@ class TripLegCreate(BaseModel):
     from_city_id: int
     to_city_id: int
     mode: str = "flight"
-    cost: int = 0
+    cost: Optional[int] = None          # omit to auto-estimate the fare
     depart_date: Optional[date] = None
-    duration_hours: Optional[int] = None
+    duration_hours: Optional[int] = None  # omit to auto-estimate the duration
+
+
+class TravelEstimateOut(BaseModel):
+    from_city_id: int
+    to_city_id: int
+    mode: str
+    travelers: int
+    distance_km: int
+    duration_hours: int
+    fare_per_person: int
+    total_fare: int
 
 
 class TripLegUpdate(BaseModel):
@@ -207,6 +226,9 @@ class TripDetailOut(BaseModel):
     share_slug: Optional[str] = None
     cover_photo_url: Optional[str] = None
     daily_meal_estimate: int = 0
+    travelers: int = 1
+    origin_city_id: Optional[int] = None
+    origin_city: Optional[CityOut] = None
     owner: Optional[UserPublicOut] = None
     stops: List[StopOut] = []
     legs: List[TripLegOut] = []

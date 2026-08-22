@@ -171,3 +171,31 @@ Backend is done and tested for all of these — see `API_CONTRACT.md` → "v3 AD
   then take the user to the new copy in their account.
 - [ ] **"Clone/Copy this trip"** on the public shared page and on friends' trips too
   (same clone endpoint).
+
+---
+
+## 8. Travel fares & travellers (backend READY — build the UI)
+
+Backend does fare/duration estimation now — see `API_CONTRACT.md` → "v5 ADDITIONS".
+
+- [ ] **Travellers on the trip form.** Add a passenger count (`travelers`) to
+  `POST`/`PUT /api/trips`. Per-person fares multiply by this — no per-leg passenger field.
+- [ ] **Home (origin) city.** Add an "I'm starting from" city selector →
+  `origin_city_id`. Offer an **initial travel leg** from the home city to the first stop.
+- [ ] **Auto fare on travel legs.** When adding a leg, call
+  `GET /api/estimate/travel?from_city_id=&to_city_id=&mode=&travelers=` to show the
+  estimated fare + hours live, then `POST /api/trips/{id}/legs` (omit `cost` to let the
+  backend fill it). Let the user change `mode` (flight/train/bus/car/ferry) and see the
+  fare/time update.
+- [ ] **Show travel in the budget.** Transport already appears in
+  `GET /api/trips/{id}/budget` (`breakdown.transport`) and the total — just render it.
+
+## 9. Run it as ONE server (share this with everyone, incl. evaluators)
+
+The backend now serves the frontend too. To run the whole app:
+```bash
+cd backend && pip install -r requirements.txt && uvicorn app.main:app
+```
+Open **http://localhost:8000**. No separate frontend server, no IP config — the
+frontend calls its own origin. For LAN demos: `uvicorn app.main:app --host 0.0.0.0`,
+others open `http://<your-ip>:8000`.

@@ -2,7 +2,7 @@
 from datetime import date
 
 from sqlalchemy import (
-    Boolean, Column, Date, ForeignKey, Integer, String, Text, DateTime, func
+    Boolean, Column, Date, Float, ForeignKey, Integer, String, Text, DateTime, func
 )
 from sqlalchemy.orm import relationship
 
@@ -28,6 +28,8 @@ class City(Base):
     name = Column(String, nullable=False)
     state = Column(String, nullable=False)
     country = Column(String, nullable=False, default="India")
+    latitude = Column(Float, nullable=True)   # for distance / fare estimation
+    longitude = Column(Float, nullable=True)
 
     activities = relationship("Activity", back_populates="city")
     hotels = relationship("Hotel", back_populates="city")
@@ -70,9 +72,12 @@ class Trip(Base):
     share_slug = Column(String, unique=True, nullable=True, index=True)
     cover_photo_url = Column(String, nullable=True)  # left null in v1 (no upload)
     daily_meal_estimate = Column(Integer, default=0)  # per-day meal budget (INR)
+    travelers = Column(Integer, default=1)  # number of people on the trip
+    origin_city_id = Column(Integer, ForeignKey("cities.id"), nullable=True)  # home city
     created_at = Column(DateTime, server_default=func.now())
 
     user = relationship("User", back_populates="trips")
+    origin_city = relationship("City", foreign_keys=[origin_city_id])
     stops = relationship(
         "TripStop",
         back_populates="trip",
