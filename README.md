@@ -79,6 +79,8 @@ GlobeTrotter-A-travel-Intelligence-Platform/
 
 ## 💻 How to Run
 
+### Frontend
+
 1. **Standalone in Browser**: Double-click `index.html` to open it in Chrome, Edge, Firefox, or Safari.
 2. **Local HTTP Server**:
    ```bash
@@ -86,4 +88,32 @@ GlobeTrotter-A-travel-Intelligence-Platform/
    # or
    python -m http.server 3000
    ```
-3. **Connecting to Python/Node Backend**: Run your backend service on `http://localhost:8000`. The frontend will automatically detect and communicate with it.
+3. **Connecting to the Backend**: Run the backend on `http://localhost:8000` (see below). The frontend auto-detects it and routes requests to the live API.
+
+### Backend (FastAPI + SQLite)
+
+The backend lives in [`backend/`](./backend) and implements the full [`API_CONTRACT.md`](./API_CONTRACT.md). It creates and seeds a local SQLite database automatically on first run (10 cities, 100 activities, 100 hotels).
+
+**Windows (PowerShell):**
+```powershell
+cd backend
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+uvicorn app.main:app --reload
+```
+
+**macOS / Linux:**
+```bash
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload
+```
+
+Then open **http://localhost:8000/docs** for interactive, testable API docs.
+
+**Using protected endpoints in `/docs`:** call `POST /api/signup` (or `/api/login`), copy the `token` from the response, click the green **Authorize** button (top-right), and paste it. Trip/stop/budget endpoints then work as the logged-in user.
+
+> Full backend details are in [`backend/README.md`](./backend/README.md).
