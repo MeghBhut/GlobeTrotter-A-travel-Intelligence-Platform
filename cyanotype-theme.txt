@@ -1,0 +1,497 @@
+========================================================================
+CYANOTYPE THEME — IMPLEMENTATION PACKAGE
+Travel site theme: light + dark, cyan primary / warm gold secondary
+========================================================================
+Hand this file to a frontend dev. It contains, in order:
+  1. <head> snippet (fonts + anti-flash theme script)
+  2. Theme tokens CSS (light default, dark via [data-theme="dark"])
+  3. Base type rules mapped to font roles
+  4. Component CSS mapped to tokens (nav, hero, search, cards, chips,
+     buttons, prices/ratings, postcard image band, theme toggle)
+  5. Theme toggle JS (vanilla, drop-in)
+  6. Markup contract (class names the CSS expects)
+  7. Acceptance checklist to verify before shipping
+
+Everything downstream keys off CSS custom properties. No component
+file should contain a raw hex value — reference a var(--token) or a
+value derived from one.
+
+========================================================================
+1) <HEAD> SNIPPET — fonts + no-flash theme init
+   Paste inside <head>, BEFORE any stylesheet that paints color/bg.
+========================================================================
+
+<!-- Cyanotype: theme init (must run before first paint, no flash) -->
+<script>
+  (function () {
+    try {
+      var saved = localStorage.getItem('cyanotype-theme');
+      var theme = saved
+        ? saved
+        : (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      if (theme === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    } catch (e) {
+      /* localStorage unavailable (privacy mode, etc.) — fall back to light */
+    }
+  })();
+</script>
+
+<!-- Cyanotype: fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600&family=Hanken+Grotesk:wght@400;500&family=Spline+Sans+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+========================================================================
+2) THEME TOKENS — put in its own file, e.g. theme.css
+   Load this FIRST, before any component stylesheet.
+========================================================================
+
+:root {
+  /* surfaces */
+  --bg: #D7E0E2;
+  --surface: #E6EDEE;
+  --surface-2: #F3F7F8;
+  --line: #B2C3C6;
+
+  /* text */
+  --ink: #16262B;
+  --ink-dim: #55696D;
+
+  /* cyan — primary / actions / navigation */
+  --cyan: #0A8FA5;
+  --cyan-glow: #0FA6BE;
+  --cyan-tint: #DFEEF1;
+
+  /* gold — secondary / prices / ratings / sun ONLY */
+  --sun: #B47A18;
+  --sun-soft: #E9C35E;
+
+  /* postcard scene bands */
+  --sea: #0A8FA5;
+  --sky: #7FC7D4;
+
+  /* derived, reused across components — do not hardcode elsewhere */
+  --radius-card: 10px;
+  --radius-control: 7px;
+  --radius-pill: 20px;
+  --shadow-card: 0 1px 2px rgba(22, 38, 43, 0.06), 0 4px 12px rgba(22, 38, 43, 0.05);
+  --focus-ring: 0 0 0 3px var(--cyan-tint);
+}
+
+[data-theme="dark"] {
+  --bg: #101E20;
+  --surface: #17282A;
+  --surface-2: #1E3033;
+  --line: #2C4145;
+
+  --ink: #D3E0E1;
+  --ink-dim: #7F9498;
+
+  --cyan: #35C6DC;
+  --cyan-glow: #4FD8EC;
+  --cyan-tint: #123034;
+
+  --sun: #E4B85E;
+  --sun-soft: #E4B85E;
+
+  --sea: #123E45;
+  --sky: #2C6470;
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.25), 0 8px 20px rgba(0, 0, 0, 0.30);
+}
+
+/* instant switch, no transition flash on theme change */
+html, body {
+  background: var(--bg);
+  color-scheme: light dark;
+}
+* {
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+========================================================================
+3) FONT ROLES — base type rules
+   Put after theme tokens, before component styles.
+========================================================================
+
+body {
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
+  font-weight: 400;
+  color: var(--ink);
+  background: var(--bg);
+}
+
+h1, h2, h3,
+.hero-title,
+.card-title,
+.wordmark {
+  font-family: 'Bricolage Grotesque', 'Hanken Grotesk', system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+/* use 500 weight for smaller headings / card titles if 600 feels heavy */
+.card-title {
+  font-weight: 500;
+}
+
+/* UI text: buttons, nav links, form labels */
+button, input, select, textarea, .nav-link, .ui-text {
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
+  font-weight: 500;
+}
+
+/* meta labels, prices, dates, eyebrow tags */
+.meta, .price, .rating, .date, .eyebrow, .stat-mono {
+  font-family: 'Spline Sans Mono', ui-monospace, monospace;
+  font-weight: 400;
+}
+
+.eyebrow {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--cyan);
+}
+
+========================================================================
+4) COMPONENTS — mapped to tokens
+========================================================================
+
+/* ---------- Page / layout ---------- */
+body {
+  background: var(--bg);
+}
+
+.surface, .card, .panel, .nav, .modal {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+}
+
+.input, .search-field, .inset {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  color: var(--ink);
+}
+.input::placeholder {
+  color: var(--ink-dim);
+}
+.input:focus, .search-field:focus {
+  outline: none;
+  border-color: var(--cyan);
+  box-shadow: var(--focus-ring);
+}
+
+/* ---------- Text ---------- */
+.text-primary, body, p, li { color: var(--ink); }
+.text-dim, .caption, .country, .subtext { color: var(--ink-dim); }
+
+/* ---------- Wordmark ---------- */
+.wordmark {
+  color: var(--ink);
+}
+.wordmark .accent {
+  color: var(--cyan);
+}
+
+/* ---------- Links / nav ---------- */
+a, .link {
+  color: var(--cyan);
+  text-decoration: none;
+}
+a:hover, .link:hover {
+  color: var(--cyan-glow);
+}
+.nav-link.active {
+  color: var(--cyan);
+  font-weight: 500;
+}
+
+/* ---------- Buttons ---------- */
+.btn-primary {
+  background: var(--cyan);
+  color: var(--surface-2);
+  border: none;
+  border-radius: var(--radius-control);
+  font-family: 'Hanken Grotesk', sans-serif;
+  font-weight: 500;
+  padding: 10px 20px;
+  cursor: pointer;
+}
+.btn-primary:hover {
+  background: var(--cyan-glow);
+}
+.btn-primary:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  font-family: 'Hanken Grotesk', sans-serif;
+  font-weight: 500;
+  padding: 10px 20px;
+  cursor: pointer;
+}
+.btn-secondary:hover {
+  border-color: var(--cyan);
+  color: var(--cyan);
+}
+.btn-secondary:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* ---------- Prices / ratings (gold — never cyan) ---------- */
+.price, .rating, .stars {
+  color: var(--sun);
+  font-family: 'Spline Sans Mono', monospace;
+  font-weight: 500;
+}
+
+/* ---------- Category / filter chips ---------- */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  background: var(--cyan-tint);
+  color: var(--cyan);
+  border-radius: var(--radius-pill);
+  padding: 6px 14px;
+  font-family: 'Hanken Grotesk', sans-serif;
+  font-weight: 500;
+  font-size: 13px;
+  border: none;
+  cursor: pointer;
+}
+.chip.active, .chip:hover {
+  background: var(--cyan);
+  color: var(--surface-2);
+}
+
+/* ---------- Destination card ---------- */
+.destination-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+.destination-card .card-title {
+  color: var(--ink);
+}
+.destination-card .card-country {
+  color: var(--ink-dim);
+}
+
+/* ---------- Postcard / placeholder image band ----------
+   Use when no real photo is available. Two horizontal bands
+   (sky over sea) with a small circular sun. Real <img> should
+   replace this whenever photography exists. */
+.postcard-placeholder {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border-radius: var(--radius-card) var(--radius-card) 0 0;
+  background: linear-gradient(
+    to bottom,
+    var(--sky) 0%,
+    var(--sky) 55%,
+    var(--sea) 55%,
+    var(--sea) 100%
+  );
+}
+.postcard-placeholder .sun {
+  position: absolute;
+  top: 18%;
+  right: 16%;
+  width: 14%;
+  aspect-ratio: 1 / 1;
+  border-radius: 50%;
+  background: var(--sun-soft);
+}
+
+/* ---------- Eyebrow labels ---------- */
+.eyebrow {
+  /* see section 3 for full rule; reproduced here for locality */
+  font-family: 'Spline Sans Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--cyan);
+}
+
+/* ---------- Theme toggle button ---------- */
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink);
+  cursor: pointer;
+}
+.theme-toggle:hover {
+  border-color: var(--cyan);
+  color: var(--cyan);
+}
+.theme-toggle svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+
+========================================================================
+5) THEME TOGGLE JS — vanilla, drop in a script file (e.g. theme.js)
+   The <head> snippet in section 1 only handles the pre-paint read.
+   This handles the click-to-toggle + persistence + icon swap.
+========================================================================
+
+(function () {
+  var STORAGE_KEY = 'cyanotype-theme';
+
+  function getStoredTheme() {
+    try {
+      return localStorage.getItem(STORAGE_KEY);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function setStoredTheme(theme) {
+    try {
+      localStorage.setItem(STORAGE_KEY, theme);
+    } catch (e) {
+      /* ignore write failures (private browsing, quota, etc.) */
+    }
+  }
+
+  function currentTheme() {
+    return document.documentElement.getAttribute('data-theme') === 'dark'
+      ? 'dark'
+      : 'light';
+  }
+
+  function applyTheme(theme) {
+    if (theme === 'dark') {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+    }
+    updateToggleIcons(theme);
+  }
+
+  function updateToggleIcons(theme) {
+    document.querySelectorAll('[data-theme-toggle]').forEach(function (btn) {
+      btn.setAttribute('aria-pressed', theme === 'dark' ? 'true' : 'false');
+      btn.setAttribute(
+        'aria-label',
+        theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'
+      );
+    });
+  }
+
+  function toggleTheme() {
+    var next = currentTheme() === 'dark' ? 'light' : 'dark';
+    applyTheme(next);
+    setStoredTheme(next);
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    // sync icon state with whatever the anti-flash head script already set
+    updateToggleIcons(currentTheme());
+
+    document.querySelectorAll('[data-theme-toggle]').forEach(function (btn) {
+      btn.addEventListener('click', toggleTheme);
+    });
+  });
+
+  // keep in sync if user changes OS theme and hasn't chosen manually
+  if (window.matchMedia) {
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function (e) {
+      if (!getStoredTheme()) {
+        applyTheme(e.matches ? 'dark' : 'light');
+      }
+    });
+  }
+})();
+
+========================================================================
+6) MARKUP CONTRACT — class names / attributes the CSS + JS expect
+========================================================================
+
+<html data-theme="dark">                <!-- set/removed by JS, absent = light -->
+
+<header class="nav">
+  <span class="wordmark">Cyano<span class="accent">type</span></span>
+  <nav>
+    <a class="nav-link active" href="#">Explore</a>
+    <a class="nav-link" href="#">Trips</a>
+  </nav>
+  <button class="theme-toggle" data-theme-toggle aria-pressed="false" aria-label="Switch to dark mode">
+    <!-- swap sun/moon icon via CSS [data-theme] attribute selector or JS, dev's choice -->
+  </button>
+</header>
+
+<section class="hero">
+  <p class="eyebrow">DESTINATIONS 2026</p>
+  <h1 class="hero-title">Where to next?</h1>
+  <div class="search-field"><input class="input" placeholder="Search destinations" /></div>
+</section>
+
+<div class="chip active">Beaches</div>
+<div class="chip">Mountains</div>
+
+<article class="destination-card">
+  <div class="postcard-placeholder"><span class="sun"></span></div>
+  <!-- or: <img src="..." alt="..."> in place of postcard-placeholder -->
+  <div class="card-body">
+    <p class="eyebrow">GREECE</p>
+    <h3 class="card-title">Santorini</h3>
+    <p class="card-country text-dim">Cyclades, Greece</p>
+    <p class="rating">★ 4.8</p>
+    <p class="price">$1,240</p>
+    <button class="btn-primary">Book</button>
+    <button class="btn-secondary">Save trip</button>
+  </div>
+</article>
+
+========================================================================
+7) ACCEPTANCE CHECKLIST — verify before shipping
+========================================================================
+
+[ ] No #000 / #FFF / rgb(0,0,0) / rgb(255,255,255) anywhere in CSS
+[ ] No raw hex codes in component files — everything is var(--token)
+[ ] Body text (--ink on --bg / --surface) passes 4.5:1 contrast in
+    BOTH light and dark (spec values verified: light ink #16262B on
+    bg #D7E0E2 ≈ 11.9:1; dark ink #D3E0E1 on bg #101E20 ≈ 12.6:1)
+[ ] Reload the page in dark mode — confirm zero flash of light theme
+[ ] Toggle theme, reload — confirm the choice persisted via
+    localStorage key "cyanotype-theme"
+[ ] Cyan (--cyan) appears only on: links, nav active state, primary
+    buttons, chips, eyebrow labels — never on prices/ratings
+[ ] Gold (--sun) appears only on: prices, ratings, sun graphic —
+    never on buttons/links/nav
+[ ] Headings use Bricolage Grotesque; body/UI uses Hanken Grotesk;
+    meta/price/date/eyebrow use Spline Sans Mono
+[ ] Cards: 9–10px radius. Buttons/inputs: 7px radius. Chips: 20px
+    (pill) radius
+[ ] Postcard placeholder shows sky band over sea band with a small
+    circular sun — used only where no real photo exists
+[ ] Focus states visible on inputs, buttons, and chips (keyboard nav)
+
+========================================================================
+END OF PACKAGE
+========================================================================
