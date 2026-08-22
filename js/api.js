@@ -701,6 +701,7 @@ class GlobeTrotterAPI {
       cost: parseInt(legData.cost) || 0,
       depart_date: legData.depart_date || null,
       duration_hours: parseInt(legData.duration_hours) || null,
+      passengers: parseInt(legData.passengers) || null,
       order_index: trip.legs ? trip.legs.length : 0
     };
     trip.legs = trip.legs || [];

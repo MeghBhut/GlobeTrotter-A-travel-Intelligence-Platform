@@ -207,16 +207,18 @@ a:hover, .link:hover {
   text-decoration: none;
   padding: 6px 12px;
   border-radius: var(--radius-control);
-  transition: all 120ms ease;
+  transition: color 160ms ease, background-color 160ms ease, transform 160ms ease;
 }
 .nav-link:hover {
   color: var(--ink);
   background: var(--surface-2);
+  transform: translateY(-1px);
 }
 .nav-link.active {
   color: var(--cyan);
   background: var(--cyan-tint);
   font-weight: 500;
+  transform: translateY(-1px);
 }
 
 /* Buttons */
@@ -291,11 +293,12 @@ a:hover, .link:hover {
   font-size: 12px;
   border: 1px solid transparent;
   cursor: pointer;
-  transition: all 120ms ease;
+  transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
 }
 .chip:hover, .chip.active {
   background: var(--cyan);
   color: var(--surface-2);
+  transform: translateY(-1px);
 }
 
 /* Destination Card */
@@ -407,6 +410,14 @@ a:hover, .link:hover {
 }
 .animate-fade-in {
   animation: fadeIn 200ms ease-out forwards;
+}
+
+@keyframes tabPanelIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.tab-panel-motion {
+  animation: tabPanelIn 180ms ease-out;
 }
 
 /* Print Stylesheet */

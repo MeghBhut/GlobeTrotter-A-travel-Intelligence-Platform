@@ -380,6 +380,7 @@ class GlobeTrotterStateClass {
   rebuildTravelLegs() {
     const stops = this.state.tripPlan.stops || [];
     const existing = this.state.tripPlan.legs || [];
+    const travelerCount = (parseInt(this.state.tripPlan.adults) || 1) + (parseInt(this.state.tripPlan.children) || 0);
     this.state.tripPlan.legs = [];
     for (let i = 0; i < stops.length - 1; i++) {
       const previous = existing[i] || {};
@@ -389,7 +390,8 @@ class GlobeTrotterStateClass {
         mode: previous.mode || 'train',
         cost: parseInt(previous.cost) || 0,
         depart_date: previous.depart_date || stops[i].end_date || stops[i + 1].start_date || null,
-        duration_hours: parseInt(previous.duration_hours) || 4
+        duration_hours: parseInt(previous.duration_hours) || 4,
+        passengers: parseInt(previous.passengers) || travelerCount
       });
     }
   }
@@ -398,7 +400,7 @@ class GlobeTrotterStateClass {
     this.rebuildTravelLegs();
     const leg = this.state.tripPlan.legs[parseInt(index)];
     if (!leg) return;
-    leg[field] = ['cost', 'duration_hours'].includes(field) ? Math.max(0, parseInt(value) || 0) : value;
+    leg[field] = ['cost', 'duration_hours', 'passengers'].includes(field) ? Math.max(0, parseInt(value) || 0) : value;
     this.notify('LEGS_CHANGED', this.state.tripPlan.legs);
   }
 

@@ -116,7 +116,7 @@ class GlobeTrotterAppClass {
         if (customTitle !== null) {
           try {
             const trip = await this.state.saveCurrentTrip(customTitle.trim() || currentTitle);
-            this.showToast(`Saved "${trip.name}" via API (Trip ID: ${trip.id})!`, 'success');
+            this.showToast(`Saved "${trip.name}" to your trips.`, 'success');
           } catch (e) {
             this.showToast(`Error saving trip: ${e.message}`, 'warning');
           }
@@ -207,7 +207,7 @@ class GlobeTrotterAppClass {
     const success = await this.state.loadSavedTrip(tripId);
     if (success) {
       this.state.setView('planner');
-      this.showToast('Loaded trip details via API!', 'success');
+      this.showToast('Loaded trip details.', 'success');
     }
   }
 
@@ -215,7 +215,7 @@ class GlobeTrotterAppClass {
     if (confirm('Are you sure you want to delete this trip?')) {
       try {
         await this.state.deleteSavedTrip(tripId);
-        this.showToast('Trip deleted (DELETE /api/trips/:id)', 'info');
+        this.showToast('Trip deleted.', 'info');
       } catch (e) {
         this.showToast(`Error deleting trip: ${e.message}`, 'warning');
       }
@@ -350,7 +350,7 @@ class GlobeTrotterAppClass {
         await this.state.initUser();
       }
     } else {
-      this.showToast('Backend offline. Operating smoothly in mock mode with contract v1 data.', 'warning');
+      this.showToast('Backend offline. Operating smoothly in demo mode.', 'warning');
     }
   }
 

@@ -145,7 +145,7 @@ class GlobeTrotterExport {
         </div>
 
         <div class="mt-8 pt-4 border-t text-center text-xs text-gray-400">
-          <p>GlobeTrotter Travel Intelligence Platform • API Contract v1 Compliant</p>
+          <p>GlobeTrotter Travel Intelligence Platform • Professional trip estimate</p>
         </div>
       </div>
     `;
@@ -180,7 +180,7 @@ class GlobeTrotterExport {
       `🏨 Stays: ${(budget.stops || [budget]).map(stop => `${stop.city.name}: ${stop.hotel.name}`).join('; ')}\n` +
       `🎯 Activities (${budget.lineItems.activities.count}): ${budget.lineItems.activities.items.map(a => a.name).join(', ')}\n` +
       `💰 Est. Total Budget: ${window.GlobeTrotterPlanner.formatPrice(budget.totals.grandTotalINR, state.currency)} (${window.GlobeTrotterPlanner.formatPrice(budget.totals.perPersonINR, state.currency)} per person)\n\n` +
-      `API Contract v1 Verified.`;
+      `Planned with GlobeTrotter.`;
 
     navigator.clipboard.writeText(summaryText).then(() => {
       if (window.GlobeTrotterApp) {

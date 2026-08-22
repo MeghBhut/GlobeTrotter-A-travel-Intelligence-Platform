@@ -31,13 +31,13 @@ class GlobeTrotterUIClass {
       if (isLive) {
         badge.innerHTML = `
           <span class="w-1.5 h-1.5 rounded-full bg-[var(--cyan)] animate-pulse"></span>
-          <span class="font-medium">Live API (localhost:8000)</span>
+          <span class="font-medium">Connected</span>
         `;
         badge.className = "cursor-pointer chip text-[11px] py-1 px-2.5 active";
       } else {
         badge.innerHTML = `
           <span class="w-1.5 h-1.5 rounded-full bg-[var(--sun)]"></span>
-          <span class="font-normal">Mock API (Contract v1)</span>
+          <span class="font-normal">Demo Mode</span>
         `;
         badge.className = "cursor-pointer chip text-[11px] py-1 px-2.5";
       }
@@ -808,7 +808,7 @@ class GlobeTrotterUIClass {
     container.innerHTML = `
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <span class="eyebrow">POST /api/trips/{id}/stops</span>
+          <span class="eyebrow">Multi-City Builder</span>
           <h3 class="text-sm font-bold uppercase tracking-wider text-[var(--cyan)] flex items-center gap-2">
             <i data-lucide="route" class="w-4 h-4"></i> Multi-City Trip Stops
           </h3>
@@ -860,12 +860,12 @@ class GlobeTrotterUIClass {
         <div class="pt-4 mt-2 border-t border-[var(--line)] space-y-3">
           <div class="flex items-center justify-between">
             <div>
-              <span class="eyebrow">POST /api/trips/{id}/legs</span>
+              <span class="eyebrow">Transfer Details</span>
               <h4 class="text-sm font-bold uppercase tracking-wider text-[var(--cyan)] flex items-center gap-2">
                 <i data-lucide="move-right" class="w-4 h-4"></i> Travel Between Cities
               </h4>
             </div>
-            <span class="text-[11px] text-dim">Saved as transport budget</span>
+            <span class="text-[11px] text-dim">Mode, passengers, fare, date, and hours included</span>
           </div>
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
             ${legs.map((leg, index) => {
@@ -877,13 +877,29 @@ class GlobeTrotterUIClass {
                     <span class="font-bold text-primary">${from.name || 'From'} to ${to.name || 'To'}</span>
                     <span class="chip text-[10px]">Leg ${index + 1}</span>
                   </div>
-                  <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-                    <select onchange="GlobeTrotterState.updateTravelLeg(${index}, 'mode', this.value)" class="select-control w-full">
-                      ${['flight', 'train', 'bus', 'car', 'ferry'].map(mode => `<option value="${mode}" ${leg.mode === mode ? 'selected' : ''}>${mode}</option>`).join('')}
-                    </select>
-                    <input type="number" min="0" value="${leg.cost || 0}" onchange="GlobeTrotterState.updateTravelLeg(${index}, 'cost', this.value)" class="input text-xs" placeholder="Cost" />
-                    <input type="date" value="${leg.depart_date || ''}" onchange="GlobeTrotterState.updateTravelLeg(${index}, 'depart_date', this.value)" class="input text-xs" />
-                    <input type="number" min="0" step="0.5" value="${leg.duration_hours || 0}" onchange="GlobeTrotterState.updateTravelLeg(${index}, 'duration_hours', this.value)" class="input text-xs" placeholder="Hours" />
+                  <div class="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
+                    <label class="space-y-1">
+                      <span class="text-[10px] text-dim uppercase font-semibold">Mode</span>
+                      <select onchange="GlobeTrotterState.updateTravelLeg(${index}, 'mode', this.value)" class="select-control w-full">
+                        ${['flight', 'train', 'bus', 'car', 'ferry'].map(mode => `<option value="${mode}" ${leg.mode === mode ? 'selected' : ''}>${mode}</option>`).join('')}
+                      </select>
+                    </label>
+                    <label class="space-y-1">
+                      <span class="text-[10px] text-dim uppercase font-semibold">Passengers</span>
+                      <input type="number" min="1" value="${leg.passengers || ((this.state.getState().tripPlan.adults || 1) + (this.state.getState().tripPlan.children || 0))}" onchange="GlobeTrotterState.updateTravelLeg(${index}, 'passengers', this.value)" class="input text-xs w-full" />
+                    </label>
+                    <label class="space-y-1">
+                      <span class="text-[10px] text-dim uppercase font-semibold">Fare</span>
+                      <input type="number" min="0" value="${leg.cost || 0}" onchange="GlobeTrotterState.updateTravelLeg(${index}, 'cost', this.value)" class="input text-xs w-full" placeholder="Cost" />
+                    </label>
+                    <label class="space-y-1">
+                      <span class="text-[10px] text-dim uppercase font-semibold">Depart</span>
+                      <input type="date" value="${leg.depart_date || ''}" onchange="GlobeTrotterState.updateTravelLeg(${index}, 'depart_date', this.value)" class="input text-xs w-full" />
+                    </label>
+                    <label class="space-y-1">
+                      <span class="text-[10px] text-dim uppercase font-semibold">Hours</span>
+                      <input type="number" min="0" step="0.5" value="${leg.duration_hours || 0}" onchange="GlobeTrotterState.updateTravelLeg(${index}, 'duration_hours', this.value)" class="input text-xs w-full" placeholder="Hours" />
+                    </label>
                   </div>
                 </div>
               `;
@@ -897,6 +913,9 @@ class GlobeTrotterUIClass {
   renderDayScheduler(viewMode = 'list') {
     const container = document.getElementById('planner-schedule-container');
     if (!container) return;
+    container.classList.remove('tab-panel-motion');
+    void container.offsetWidth;
+    container.classList.add('tab-panel-motion');
 
     const currentCity = this.state.getCurrentCity();
     const state = this.state.getState();
@@ -981,7 +1000,7 @@ class GlobeTrotterUIClass {
     if (state.calendarLoading && !calendar) {
       container.innerHTML = `
         <div class="surface-inset p-6 rounded-[var(--radius-card)] text-center text-dim text-sm">
-          Loading calendar from GET /api/trips/${state.tripPlan.id}/calendar...
+          Loading your dated itinerary...
         </div>
       `;
       return;
@@ -1008,7 +1027,7 @@ class GlobeTrotterUIClass {
     const allDates = calendar.days.map(day => day.date);
     container.innerHTML = `
       <div class="flex items-center justify-between gap-3">
-        <span class="eyebrow">GET /api/trips/${calendar.trip_id}/calendar</span>
+        <span class="eyebrow">Dated Timeline</span>
         <button onclick="GlobeTrotterState.loadTripCalendar(${calendar.trip_id})" class="btn-secondary text-xs">
           <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Refresh
         </button>
@@ -1246,7 +1265,7 @@ class GlobeTrotterUIClass {
         <div class="text-center py-16 text-dim col-span-full">
           <i data-lucide="bookmark-x" class="w-12 h-12 mx-auto mb-3 text-dim"></i>
           <h3 class="text-lg font-bold text-primary">No saved trips yet</h3>
-          <p class="text-sm mt-1">${activeStatus === 'all' ? 'Configure your custom itinerary and click "Save Trip" to store it via the API.' : `No ${activeStatus} trips match this timeline tab.`}</p>
+          <p class="text-sm mt-1">${activeStatus === 'all' ? 'Configure your custom itinerary and click "Save Trip" to keep it in your account.' : `No ${activeStatus} trips match this timeline tab.`}</p>
           <button onclick="GlobeTrotterState.setView('planner')" class="btn-primary mt-4">
             Go to Planner
           </button>
@@ -1411,7 +1430,7 @@ class GlobeTrotterUIClass {
         <div class="lg:col-span-5 space-y-6">
           <section class="surface p-5 space-y-3">
             <div>
-              <span class="eyebrow">GET /api/users/search?q=</span>
+              <span class="eyebrow">Traveler Search</span>
               <h3 class="text-sm font-bold uppercase tracking-wider text-[var(--cyan)] flex items-center gap-2">
                 <i data-lucide="user-plus" class="w-4 h-4"></i> Find Travelers
               </h3>
@@ -1437,7 +1456,7 @@ class GlobeTrotterUIClass {
 
           <section class="surface p-5 space-y-3">
             <div>
-              <span class="eyebrow">GET /api/friends/requests</span>
+              <span class="eyebrow">Pending Invites</span>
               <h3 class="text-sm font-bold uppercase tracking-wider text-[var(--cyan)] flex items-center gap-2">
                 <i data-lucide="inbox" class="w-4 h-4"></i> Incoming Requests
               </h3>
@@ -1462,7 +1481,7 @@ class GlobeTrotterUIClass {
         <div class="lg:col-span-7 space-y-6">
           <section class="surface p-5 space-y-3">
             <div>
-              <span class="eyebrow">GET /api/friends</span>
+              <span class="eyebrow">Travel Circle</span>
               <h3 class="text-sm font-bold uppercase tracking-wider text-[var(--cyan)] flex items-center gap-2">
                 <i data-lucide="users" class="w-4 h-4"></i> My Friends
               </h3>
@@ -1489,7 +1508,7 @@ class GlobeTrotterUIClass {
 
           <section class="space-y-3">
             <div>
-              <span class="eyebrow">GET /api/users/{id}/trips</span>
+              <span class="eyebrow">Shared With You</span>
               <h3 class="text-sm font-bold uppercase tracking-wider text-[var(--cyan)] flex items-center gap-2">
                 <i data-lucide="map" class="w-4 h-4"></i> ${selectedFriend ? `${selectedFriend.name}'s Visible Trips` : 'Friend Trips'}
               </h3>
@@ -1721,7 +1740,7 @@ class GlobeTrotterUIClass {
           <div>
             <div class="flex justify-between items-center mb-4">
               <h3 class="text-lg font-bold text-primary flex items-center gap-2">
-                <i data-lucide="hotel" class="w-4 h-4 text-[var(--cyan)]"></i> GET /api/cities/${city.id}/hotels (${cityHotels.length} Stays)
+                <i data-lucide="hotel" class="w-4 h-4 text-[var(--cyan)]"></i> ${cityHotels.length} Curated Stays
               </h3>
               <span class="eyebrow">Rates per night</span>
             </div>
@@ -1748,7 +1767,7 @@ class GlobeTrotterUIClass {
           <div>
             <div class="flex justify-between items-center mb-4">
               <h3 class="text-lg font-bold text-primary flex items-center gap-2">
-                <i data-lucide="compass" class="w-4 h-4 text-[var(--cyan)]"></i> GET /api/cities/${city.id}/activities (${cityActs.length} Experiences)
+                <i data-lucide="compass" class="w-4 h-4 text-[var(--cyan)]"></i> ${cityActs.length} Curated Experiences
               </h3>
               <span class="eyebrow">Estimates per person</span>
             </div>
@@ -1778,7 +1797,7 @@ class GlobeTrotterUIClass {
 
           <div class="pt-6 border-t border-[var(--line)] flex flex-col sm:flex-row justify-between items-center gap-4">
             <div class="text-xs text-dim text-center sm:text-left">
-              Build an API-synced custom itinerary for <strong class="text-primary">${city.name}</strong>
+              Build a custom itinerary for <strong class="text-primary">${city.name}</strong>
             </div>
             <button onclick="GlobeTrotterApp.startPlanning(${city.id})" class="btn-primary w-full sm:w-auto">
               <i data-lucide="sparkles" class="w-4 h-4"></i> Start Customizing Itinerary
