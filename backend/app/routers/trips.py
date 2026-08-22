@@ -1,15 +1,57 @@
 """Trip CRUD + stops + stop-activities (all scoped to the logged-in user)."""
-import secrets
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from .. import models, schemas
+from .. import models, schemas, access
 from ..auth import get_current_user
 
 router = APIRouter(prefix="/api", tags=["trips"])
+
+
+def _clone_trip_for(source: models.Trip, new_owner_id: int, db: Session) -> models.Trip:
+    """Deep-copy a trip (stops + activities + hotels + legs) into a user's account,
+    reset to private with no share slug."""
+    clone = models.Trip(
+        user_id=new_owner_id,
+        name=f"Copy of {source.name}",
+        description=source.description or "",
+        start_date=source.start_date,
+        end_date=source.end_date,
+        daily_meal_estimate=source.daily_meal_estimate or 0,
+        visibility="private",
+        is_public=False,
+        share_slug=None,
+    )
+    db.add(clone)
+    db.flush()  # get clone.id
+
+    for stop in source.stops:
+        new_stop = models.TripStop(
+            trip_id=clone.id, city_id=stop.city_id,
+            start_date=stop.start_date, end_date=stop.end_date,
+            order_index=stop.order_index,
+        )
+        db.add(new_stop)
+        db.flush()
+        for a in stop.activities:
+            db.add(models.StopActivity(
+                stop_id=new_stop.id, activity_id=a.activity_id, num_people=a.num_people))
+        for h in stop.hotels:
+            db.add(models.StopHotel(
+                stop_id=new_stop.id, hotel_id=h.hotel_id, nights=h.nights))
+
+    for leg in source.legs:
+        db.add(models.TripLeg(
+            trip_id=clone.id, from_city_id=leg.from_city_id, to_city_id=leg.to_city_id,
+            mode=leg.mode, cost=leg.cost, depart_date=leg.depart_date,
+            duration_hours=leg.duration_hours, order_index=leg.order_index))
+
+    db.commit()
+    db.refresh(clone)
+    return clone
 
 
 # ---------- helpers ----------
@@ -29,13 +71,20 @@ def _owned_stop(stop_id: int, user: models.User, db: Session) -> models.TripStop
 
 # ---------- trips ----------
 @router.get("/trips", response_model=List[schemas.TripOut])
-def list_trips(user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
-    return (
+def list_trips(
+    status: Optional[str] = None,  # upcoming | ongoing | completed (timeline filter)
+    user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    trips = (
         db.query(models.Trip)
         .filter(models.Trip.user_id == user.id)
-        .order_by(models.Trip.created_at.desc())
+        .order_by(models.Trip.start_date.is_(None), models.Trip.start_date.asc())
         .all()
     )
+    if status:
+        trips = [t for t in trips if t.status == status]
+    return trips
 
 
 @router.post("/trips", response_model=schemas.TripOut, status_code=201)
@@ -52,6 +101,7 @@ def create_trip(
         end_date=payload.end_date,
         daily_meal_estimate=payload.daily_meal_estimate or 0,
     )
+    access.apply_visibility(trip, payload.visibility or "private")
     db.add(trip)
     db.commit()
     db.refresh(trip)
@@ -77,9 +127,12 @@ def update_trip(
     trip = _owned_trip(trip_id, user, db)
     data = payload.model_dump(exclude_unset=True)
 
-    # Making a trip public mints a share slug once.
-    if data.get("is_public") and not trip.share_slug:
-        trip.share_slug = secrets.token_urlsafe(8)
+    # Visibility: prefer the explicit `visibility`, else map the legacy is_public flag.
+    if "visibility" in data:
+        access.apply_visibility(trip, data.pop("visibility"))
+        data.pop("is_public", None)
+    elif "is_public" in data:
+        access.apply_visibility(trip, "public" if data.pop("is_public") else "private")
 
     for field, value in data.items():
         setattr(trip, field, value)
@@ -87,6 +140,20 @@ def update_trip(
     db.commit()
     db.refresh(trip)
     return trip
+
+
+@router.post("/trips/{trip_id}/clone", response_model=schemas.CloneResponse, status_code=201)
+def clone_trip(
+    trip_id: int,
+    user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Copy a trip you can see (yours, public, or a friend's friends-only) into your account."""
+    source = db.query(models.Trip).filter(models.Trip.id == trip_id).first()
+    if source is None or not access.can_view_trip(db, source, user.id):
+        raise HTTPException(status_code=404, detail="Trip not found")
+    clone = _clone_trip_for(source, user.id, db)
+    return {"id": clone.id, "name": clone.name}
 
 
 @router.delete("/trips/{trip_id}", status_code=status.HTTP_204_NO_CONTENT)

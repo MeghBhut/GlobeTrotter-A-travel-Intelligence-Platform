@@ -55,6 +55,13 @@ class TokenResponse(BaseModel):
     user: UserOut
 
 
+class UserPublicOut(BaseModel):
+    """A safe, minimal view of another user (no email leak beyond what's needed)."""
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+
+
 # ---------- trips ----------
 class TripCreate(BaseModel):
     name: str
@@ -62,6 +69,7 @@ class TripCreate(BaseModel):
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     daily_meal_estimate: Optional[int] = 0
+    visibility: Optional[str] = "private"  # private | friends | public
 
 
 class TripUpdate(BaseModel):
@@ -69,7 +77,8 @@ class TripUpdate(BaseModel):
     description: Optional[str] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
-    is_public: Optional[bool] = None
+    is_public: Optional[bool] = None  # legacy; maps to visibility
+    visibility: Optional[str] = None  # private | friends | public
     daily_meal_estimate: Optional[int] = None
 
 
@@ -81,10 +90,13 @@ class TripOut(BaseModel):
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     is_public: bool
+    visibility: str
+    status: str  # upcoming | ongoing | completed
     share_slug: Optional[str] = None
     cover_photo_url: Optional[str] = None
     daily_meal_estimate: int = 0
     destination_count: int
+    owner: Optional[UserPublicOut] = None
 
 
 # ---------- stops & stop-activities ----------
@@ -180,11 +192,40 @@ class TripDetailOut(BaseModel):
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     is_public: bool
+    visibility: str
+    status: str  # upcoming | ongoing | completed
     share_slug: Optional[str] = None
     cover_photo_url: Optional[str] = None
     daily_meal_estimate: int = 0
+    owner: Optional[UserPublicOut] = None
     stops: List[StopOut] = []
     legs: List[TripLegOut] = []
+
+
+# ---------- friends & community ----------
+class UserSearchOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+    email: EmailStr
+
+
+class FriendRequestCreate(BaseModel):
+    user_id: int  # the user to send a friend request to
+
+
+class FriendshipOut(BaseModel):
+    """A friendship row as seen by the current user."""
+    id: int
+    user: UserPublicOut          # the OTHER person in the friendship
+    status: str                  # pending | accepted
+    direction: str               # incoming | outgoing (for pending requests)
+
+
+class CloneResponse(BaseModel):
+    id: int          # new trip id in my account
+    name: str
+    message: str = "Trip cloned to your account"
 
 
 # ---------- budget ----------

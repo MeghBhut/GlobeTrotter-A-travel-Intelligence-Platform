@@ -379,3 +379,91 @@ A leg is the journey **between two cities** — this is the "travelling" part of
 | `PUT` | `/api/legs/{leg_id}` | Update a travel leg |
 | `DELETE` | `/api/legs/{leg_id}` | Remove a travel leg |
 | `POST`/`PUT` | `/api/trips` · `/api/trips/{id}` | Now accept `daily_meal_estimate` |
+
+---
+
+# ==================== v3 ADDITIONS (Timeline status, Friends, Visibility, Community) ====================
+
+v3 adds trip **status** for the timeline, three-level **visibility**, a **friends**
+system, a **community** feed of public trips, and **trip cloning**. All v1/v2
+endpoints are unchanged. Trip objects now also include: `visibility`
+("private" | "friends" | "public"), `status` ("upcoming" | "ongoing" | "completed"),
+and `owner` ({ id, name }).
+
+## v3.1 Timeline status
+Every trip object now has a computed **`status`** derived from today's date vs the
+trip's `start_date`/`end_date`:
+- `upcoming` — starts in the future (or no dates yet)
+- `ongoing` — today is within the trip
+- `completed` — the trip has ended
+
+Filter the user's trips for timeline tabs:
+- `GET /api/trips?status=upcoming` · `?status=ongoing` · `?status=completed`
+  (omit `status` for all). Sorted by start date.
+
+## v3.2 Visibility (private / friends / public)
+`POST /api/trips` and `PUT /api/trips/{id}` accept **`visibility`**:
+```json
+{ "visibility": "public" }   // "private" | "friends" | "public"
+```
+- `private` — only you
+- `friends` — you and your accepted friends
+- `public` — anyone (appears in the community feed; a `share_slug` is minted)
+
+The legacy `is_public` boolean still works (`true` → public, `false` → private) and
+is always returned in sync with `visibility`.
+
+## v3.3 Friends
+
+| Method | Endpoint | Body / Notes |
+|--------|----------|--------------|
+| `GET` | `/api/users/search?q=bob` | Find users by name/email → `[{ id, name, email }]` |
+| `POST` | `/api/friends/request` | `{ "user_id": 5 }` → sends a request |
+| `GET` | `/api/friends/requests` | Incoming pending requests addressed to me |
+| `POST` | `/api/friends/{id}/accept` | Accept a pending request (by friendship id) |
+| `DELETE` | `/api/friends/{id}` | Decline / cancel / unfriend (same endpoint) |
+| `GET` | `/api/friends` | My accepted friends |
+| `GET` | `/api/users/{user_id}/trips` | A user's trips **visible to me** (friend → friends+public; else public only) |
+
+Friendship object shape:
+```json
+{ "id": 12, "user": { "id": 5, "name": "Bob" }, "status": "pending", "direction": "incoming" }
+```
+- `user` = the *other* person. `direction` = `incoming` (they asked me) or `outgoing` (I asked them). `status` = `pending` | `accepted`.
+
+## v3.4 Community feed
+### `GET /api/community/trips?limit=30&offset=0`
+All **public** trips, newest first — each carries its `owner`:
+```json
+[
+  { "id": 8, "name": "Goa Public", "visibility": "public", "status": "upcoming",
+    "owner": { "id": 9, "name": "Alice" }, "share_slug": "aB3xY...",
+    "start_date": "2026-09-21", "end_date": "2026-09-24", "destination_count": 1, "...": "..." }
+]
+```
+
+## v3.5 Clone a trip (Copy Trip)
+### `POST /api/trips/{trip_id}/clone`
+Copies a trip you can see — **yours, a public one, or a friend's friends-only one** —
+into your account (deep-copies stops, activities, hotels, and travel legs). The copy
+is `private`, titled `"Copy of <name>"`, with no share slug.
+Response `201`:
+```json
+{ "id": 42, "name": "Copy of Goa Public", "message": "Trip cloned to your account" }
+```
+
+## v3.6 New endpoint summary
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| `GET` | `/api/trips?status=` | Timeline filter (upcoming/ongoing/completed) |
+| `GET` | `/api/users/search?q=` | Find users to friend |
+| `POST` | `/api/friends/request` | Send friend request |
+| `GET` | `/api/friends/requests` | Incoming pending requests |
+| `POST` | `/api/friends/{id}/accept` | Accept request |
+| `DELETE` | `/api/friends/{id}` | Decline / cancel / unfriend |
+| `GET` | `/api/friends` | List friends |
+| `GET` | `/api/users/{id}/trips` | A user's trips visible to me |
+| `GET` | `/api/community/trips` | Public trips feed (with owner) |
+| `POST` | `/api/trips/{id}/clone` | Copy a trip into my account |
+| `POST`/`PUT` | `/api/trips` · `/api/trips/{id}` | Now accept `visibility` |

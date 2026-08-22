@@ -147,3 +147,27 @@ No more backend work needed for these — wire the UI to the endpoints (see
 - [ ] **Compare destinations — make the cities selectable.** The compare view has
   fixed cities; add a city picker backed by `GET /api/cities` and pull each city's
   `activities`/`hotels` for side-by-side comparison. (No backend change needed.)
+
+---
+
+## 7. Timeline, Friends & Community (backend READY — build the UI)
+
+Backend is done and tested for all of these — see `API_CONTRACT.md` → "v3 ADDITIONS".
+
+- [ ] **Timeline with tabs.** Add Upcoming / Ongoing / Completed tabs on the trips
+  timeline. Each trip already returns a `status` field; or fetch per tab with
+  `GET /api/trips?status=upcoming|ongoing|completed`.
+- [ ] **Visibility selector on a trip.** Replace the public/private toggle with three
+  choices — Private / Friends only / Public — via `PUT /api/trips/{id}` with
+  `visibility`. Show the resulting share link when Public.
+- [ ] **Friends tab.**
+  - Search users: `GET /api/users/search?q=`
+  - Send request: `POST /api/friends/request { user_id }`
+  - Incoming requests + Accept: `GET /api/friends/requests`, `POST /api/friends/{id}/accept`
+  - Friends list + unfriend: `GET /api/friends`, `DELETE /api/friends/{id}`
+  - View a friend's trips: `GET /api/users/{id}/trips`
+- [ ] **Community page.** Grid of all public trips via `GET /api/community/trips`,
+  each showing the `owner` name. Add a **Copy Trip** button → `POST /api/trips/{id}/clone`,
+  then take the user to the new copy in their account.
+- [ ] **"Clone/Copy this trip"** on the public shared page and on friends' trips too
+  (same clone endpoint).

@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .database import Base, engine, SessionLocal
 from .seed import seed
-from .routers import cities, users, trips, budget, public
+from .routers import cities, users, trips, budget, public, friends, community
 
 
 def _migrate() -> None:
@@ -20,6 +20,14 @@ def _migrate() -> None:
         if "daily_meal_estimate" not in cols:
             conn.exec_driver_sql(
                 "ALTER TABLE trips ADD COLUMN daily_meal_estimate INTEGER DEFAULT 0"
+            )
+        if "visibility" not in cols:
+            conn.exec_driver_sql(
+                "ALTER TABLE trips ADD COLUMN visibility VARCHAR DEFAULT 'private'"
+            )
+            # Backfill: existing public trips keep being public.
+            conn.exec_driver_sql(
+                "UPDATE trips SET visibility='public' WHERE is_public=1"
             )
 
 
@@ -34,8 +42,8 @@ finally:
 
 app = FastAPI(
     title="GlobeTrotter API",
-    version="1.0.0",
-    description="Backend for the GlobeTrotter travel planning prototype.",
+    version="3.0.0",
+    description="Backend for GlobeTrotter — trips, travel, budgets, friends & community.",
 )
 
 # Allow the frontend dev server to call us during development.
@@ -52,6 +60,8 @@ app.include_router(users.router)
 app.include_router(trips.router)
 app.include_router(budget.router)
 app.include_router(public.router)
+app.include_router(friends.router)
+app.include_router(community.router)
 
 
 @app.get("/", tags=["health"])

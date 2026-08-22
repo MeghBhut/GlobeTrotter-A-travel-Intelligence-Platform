@@ -1,4 +1,6 @@
 """Database tables (ORM models) and the relationships between them."""
+from datetime import date
+
 from sqlalchemy import (
     Boolean, Column, Date, ForeignKey, Integer, String, Text, DateTime, func
 )
@@ -63,7 +65,8 @@ class Trip(Base):
     description = Column(Text, default="")
     start_date = Column(Date, nullable=True)
     end_date = Column(Date, nullable=True)
-    is_public = Column(Boolean, default=False)
+    is_public = Column(Boolean, default=False)  # kept in sync with visibility=="public"
+    visibility = Column(String, default="private")  # private | friends | public
     share_slug = Column(String, unique=True, nullable=True, index=True)
     cover_photo_url = Column(String, nullable=True)  # left null in v1 (no upload)
     daily_meal_estimate = Column(Integer, default=0)  # per-day meal budget (INR)
@@ -86,6 +89,26 @@ class Trip(Base):
     @property
     def destination_count(self) -> int:
         return len(self.stops)
+
+    @property
+    def status(self) -> str:
+        """Timeline bucket derived from today's date vs the trip dates."""
+        today = date.today()
+        if not self.start_date or not self.end_date:
+            return "upcoming"
+        if today < self.start_date:
+            return "upcoming"
+        if self.start_date <= today <= self.end_date:
+            return "ongoing"
+        return "completed"
+
+    @property
+    def owner_name(self) -> str:
+        return self.user.name if self.user else ""
+
+    @property
+    def owner(self):
+        return self.user
 
 
 class TripStop(Base):
@@ -184,3 +207,18 @@ class TripLeg(Base):
     trip = relationship("Trip", back_populates="legs")
     from_city = relationship("City", foreign_keys=[from_city_id])
     to_city = relationship("City", foreign_keys=[to_city_id])
+
+
+class Friendship(Base):
+    """A friend link. `requester` sends, `addressee` accepts.
+    status: pending | accepted. Friendship is mutual once accepted."""
+    __tablename__ = "friendships"
+
+    id = Column(Integer, primary_key=True, index=True)
+    requester_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    addressee_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    status = Column(String, default="pending")  # pending | accepted
+    created_at = Column(DateTime, server_default=func.now())
+
+    requester = relationship("User", foreign_keys=[requester_id])
+    addressee = relationship("User", foreign_keys=[addressee_id])
