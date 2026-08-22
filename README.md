@@ -1,0 +1,1 @@
+# GlobeTrotter-A-travel-Intelligence-Platform
