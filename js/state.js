@@ -3,7 +3,7 @@
  * Supports User Authentication, Multi-Stop Itineraries, Calendar Views, Public Sharing, and Settings.
  */
 
-class GlobeTrotterState {
+class GlobeTrotterStateClass {
   constructor() {
     this.api = window.GlobeTrotterAPI;
 
@@ -506,4 +506,4 @@ class GlobeTrotterState {
 }
 
 // Global state instance
-window.GlobeTrotterState = new GlobeTrotterState();
+window.GlobeTrotterState = new GlobeTrotterStateClass();

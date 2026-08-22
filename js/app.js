@@ -2,7 +2,7 @@
  * GlobeTrotter Application Controller (v2 Tasks & API Contract Compliant)
  */
 
-class GlobeTrotterApp {
+class GlobeTrotterAppClass {
   constructor() {
     this.state = window.GlobeTrotterState;
     this.ui = window.GlobeTrotterUI;
@@ -297,7 +297,7 @@ class GlobeTrotterApp {
   }
 }
 
-window.GlobeTrotterApp = new GlobeTrotterApp();
+window.GlobeTrotterApp = new GlobeTrotterAppClass();
 document.addEventListener('DOMContentLoaded', () => {
   window.GlobeTrotterApp.init();
 });
