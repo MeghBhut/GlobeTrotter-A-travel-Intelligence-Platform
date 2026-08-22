@@ -13,14 +13,32 @@ are all on the frontend side.
 
 ---
 
-## 1. Bug fixes (found during testing)
+## 1. Auth bug fixes (found in live testing)
 
+> **Verified:** the backend and the signup/login handlers themselves WORK — with the
+> backend live, signup creates real users, login authenticates, and wrong-password
+> shows the right error. The problems below are why it *looks* broken in the browser.
+
+- [ ] **Validate the token on load (biggest one).** `isAuthenticated()` just returns
+  `!!this.token`, so if *any* token is left in `localStorage` (from an old session or
+  an expired login) the app thinks you're already logged in, shows a default identity,
+  and the login/signup modal **never opens** — which reads as "login not happening /
+  defaults to a user." Fix: on startup, if a token exists, call `GET /api/me`; if it
+  fails or returns 401, clear the token + stored user and treat the user as logged out.
+- [ ] **Remove the hardcoded "Megh" placeholder.** The profile pill's initial HTML
+  shows "Megh" before any real user loads. Show a neutral "Sign in" / guest state
+  until `GET /api/me` returns a real user, so it isn't mistaken for a logged-in user.
 - [ ] **Backend badge race condition.** Clicking the status badge while the page is
-  still loading throws `GlobeTrotterApp.pingBackend is not a function`. Cause: the
-  inline `onclick` fires before `window.GlobeTrotterApp` is assigned. Fix: bind the
-  handler with `addEventListener` after `DOMContentLoaded` (or guard the onclick).
-- [ ] **Profile pill is dead.** The "M / Megh" pill in the header is a static `<div>`
-  with no handler. Make it a real button that opens the profile/account menu (see §2).
+  still loading throws `GlobeTrotterApp.pingBackend is not a function` (inline
+  `onclick` fires before `window.GlobeTrotterApp` exists). Fix: bind it with
+  `addEventListener` after `DOMContentLoaded` instead of the inline `onclick`.
+- [ ] **Make mock vs live obvious.** When the backend is offline (`isLiveBackend =
+  false`), signup/login silently create **fake, local-only** users — so it "works"
+  but nothing is really saved and it can't be shared. Show a visible "Offline / mock
+  mode" indicator, or require the live backend for real auth, so this isn't mistaken
+  for a real account.
+- [ ] **Logout clears everything.** Ensure logout removes the token AND the stored
+  user from `localStorage`, then returns to a logged-out state.
 
 ---
 
