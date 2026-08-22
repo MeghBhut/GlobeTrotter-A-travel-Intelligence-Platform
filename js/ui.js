@@ -1,5 +1,5 @@
 /**
- * GlobeTrotter UI Rendering Controller (API Contract v1 Compliant)
+ * GlobeTrotter UI Rendering Controller (Cyanotype Theme Compliant)
  */
 
 class GlobeTrotterUI {
@@ -30,16 +30,16 @@ class GlobeTrotterUI {
     if (badge) {
       if (isLive) {
         badge.innerHTML = `
-          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-          <span class="text-emerald-400 font-bold">Live API (localhost:8000)</span>
+          <span class="w-1.5 h-1.5 rounded-full bg-[var(--cyan)] animate-pulse"></span>
+          <span class="font-medium">Live API (localhost:8000)</span>
         `;
-        badge.className = "flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-950/80 border border-emerald-500/40 text-[11px]";
+        badge.className = "cursor-pointer chip text-[11px] py-1 px-2.5 active";
       } else {
         badge.innerHTML = `
-          <span class="w-2 h-2 rounded-full bg-amber-400"></span>
-          <span class="text-amber-300 font-medium">Mock API (Contract v1)</span>
+          <span class="w-1.5 h-1.5 rounded-full bg-[var(--sun)]"></span>
+          <span class="font-normal">Mock API (Contract v1)</span>
         `;
-        badge.className = "flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-950/80 border border-amber-500/40 text-[11px]";
+        badge.className = "cursor-pointer chip text-[11px] py-1 px-2.5";
       }
     }
   }
@@ -153,7 +153,7 @@ class GlobeTrotterUI {
     const views = ['explore', 'planner', 'saved', 'comparison'];
     views.forEach(v => {
       const el = document.getElementById(`view-${v}`);
-      const tab = document.querySelector(`.nav-tab[data-view="${v}"]`);
+      const tabs = document.querySelectorAll(`.nav-tab[data-view="${v}"]`);
       if (el) {
         if (v === viewName) {
           el.classList.remove('hidden');
@@ -162,15 +162,13 @@ class GlobeTrotterUI {
           el.classList.add('hidden');
         }
       }
-      if (tab) {
+      tabs.forEach(tab => {
         if (v === viewName) {
-          tab.classList.add('text-amber-400', 'border-b-2', 'border-amber-400', 'bg-slate-800/60');
-          tab.classList.remove('text-slate-400');
+          tab.classList.add('active');
         } else {
-          tab.classList.remove('text-amber-400', 'border-b-2', 'border-amber-400', 'bg-slate-800/60');
-          tab.classList.add('text-slate-400');
+          tab.classList.remove('active');
         }
-      }
+      });
     });
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -198,11 +196,11 @@ class GlobeTrotterUI {
 
     if (filtered.length === 0) {
       grid.innerHTML = `
-        <div class="col-span-full py-16 text-center text-slate-400">
-          <i data-lucide="map-pin-off" class="w-12 h-12 mx-auto mb-3 text-slate-500"></i>
-          <h3 class="text-xl font-semibold text-white">No destinations found</h3>
+        <div class="col-span-full py-16 text-center text-dim">
+          <i data-lucide="map-pin-off" class="w-12 h-12 mx-auto mb-3 text-dim"></i>
+          <h3 class="text-xl font-semibold text-primary">No destinations found</h3>
           <p class="text-sm mt-1">Try adjusting your search keywords or region filters.</p>
-          <button onclick="GlobeTrotterState.resetFilters()" class="mt-4 px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-950 font-semibold text-sm transition">
+          <button onclick="GlobeTrotterState.resetFilters()" class="btn-primary mt-4">
             Reset Filters
           </button>
         </div>
@@ -217,71 +215,66 @@ class GlobeTrotterUI {
       const freeCount = cityActs.filter(a => a.price_per_person === 0).length;
 
       return `
-        <div class="glass-card rounded-2xl overflow-hidden flex flex-col group relative">
-          <!-- Banner Image -->
-          <div class="relative h-48 sm:h-56 overflow-hidden">
-            <img src="${city.heroImage}" alt="${city.name}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out" />
-            <div class="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/30 to-transparent"></div>
+        <article class="destination-card">
+          <!-- Image Band -->
+          <div class="relative h-48 sm:h-52 overflow-hidden">
+            <img src="${city.heroImage}" alt="${city.name}" class="w-full h-full object-cover hover:scale-105 transition-transform duration-500 ease-out" onerror="this.outerHTML='<div class=\\'postcard-placeholder\\'><span class=\\'sun\\'></span></div>'" />
+            <div class="absolute inset-0 bg-gradient-to-t from-[var(--surface)] via-transparent to-transparent"></div>
             
-            <!-- Region Badge -->
             <div class="absolute top-3 left-3 flex gap-1.5 flex-wrap">
-              <span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-slate-900/80 backdrop-blur text-amber-400 border border-amber-500/30">
-                ${city.region} India (ID: ${city.id})
-              </span>
-              <span class="px-2.5 py-1 text-xs font-medium rounded-full bg-slate-900/70 backdrop-blur text-slate-300">
-                ${city.state}
+              <span class="chip text-[11px] py-0.5 px-2">
+                ${city.region} India • #${city.id}
               </span>
             </div>
 
-            <!-- Free Activities Badge -->
             ${freeCount > 0 ? `
               <div class="absolute top-3 right-3">
-                <span class="px-2 py-1 text-xs font-bold rounded-full bg-emerald-950/80 text-emerald-300 border border-emerald-500/40 backdrop-blur flex items-center gap-1">
+                <span class="chip text-[11px] py-0.5 px-2 active">
                   <i data-lucide="tag" class="w-3 h-3"></i> ${freeCount} Free Walks
                 </span>
               </div>
             ` : ''}
-
-            <!-- Title Overlay -->
-            <div class="absolute bottom-3 left-4 right-4">
-              <h3 class="text-2xl font-bold text-white tracking-tight leading-tight">${city.name}</h3>
-              <p class="text-xs text-amber-300/90 font-medium truncate">${city.tagline}</p>
-            </div>
           </div>
 
-          <!-- Content Body -->
+          <!-- Card Body -->
           <div class="p-5 flex-1 flex flex-col justify-between">
-            <p class="text-slate-300 text-xs line-clamp-2 mb-4 leading-relaxed">${city.description}</p>
-            
-            <div class="flex flex-wrap gap-1.5 mb-4">
-              ${city.tags.slice(0, 4).map(tag => `
-                <span class="text-[11px] px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 border border-slate-700">
-                  #${tag}
-                </span>
-              `).join('')}
-            </div>
-
-            <div class="grid grid-cols-2 gap-2 py-3 px-3 rounded-xl bg-slate-800/60 border border-slate-700/50 mb-4 text-xs">
-              <div>
-                <span class="text-slate-400 block text-[10px] uppercase font-semibold">Stays From</span>
-                <span class="font-bold text-amber-400 text-sm">${this.planner.formatPrice(lowestHotel.price_per_night, currency)}<span class="text-[10px] font-normal text-slate-400">/nt</span></span>
-              </div>
-              <div class="text-right">
-                <span class="text-slate-400 block text-[10px] uppercase font-semibold">Activities</span>
-                <span class="font-bold text-white text-sm">${cityActs.length} Curated</span>
+            <div>
+              <p class="eyebrow mb-1">${city.state}, INDIA</p>
+              <h3 class="card-title text-xl font-bold mb-1">${city.name}</h3>
+              <p class="card-country text-dim text-xs mb-3 line-clamp-2">${city.description}</p>
+              
+              <div class="flex flex-wrap gap-1.5 mb-4">
+                ${city.tags.slice(0, 3).map(tag => `
+                  <span class="chip text-[10px] py-0.5 px-2">
+                    #${tag}
+                  </span>
+                `).join('')}
               </div>
             </div>
 
-            <div class="grid grid-cols-2 gap-2 pt-2 border-t border-slate-700/40">
-              <button onclick="GlobeTrotterState.setModalCity(${city.id})" class="px-3 py-2 text-xs font-semibold rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 transition flex items-center justify-center gap-1.5">
-                <i data-lucide="info" class="w-3.5 h-3.5"></i> City Catalog
-              </button>
-              <button onclick="GlobeTrotterApp.startPlanning(${city.id})" class="px-3 py-2 text-xs font-bold rounded-lg bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 shadow-md shadow-amber-500/10 transition flex items-center justify-center gap-1.5">
-                <i data-lucide="calendar" class="w-3.5 h-3.5"></i> Plan Trip
-              </button>
+            <div>
+              <div class="grid grid-cols-2 gap-2 py-2.5 px-3 rounded-[var(--radius-control)] surface-inset mb-4 text-xs">
+                <div>
+                  <span class="text-dim block text-[10px] uppercase font-semibold">Stays From</span>
+                  <span class="price text-sm font-semibold">${this.planner.formatPrice(lowestHotel.price_per_night, currency)}<span class="text-[10px] text-dim font-normal">/nt</span></span>
+                </div>
+                <div class="text-right">
+                  <span class="text-dim block text-[10px] uppercase font-semibold">Tours</span>
+                  <span class="stat-mono text-sm font-medium">${cityActs.length} Curated</span>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-2 gap-2 pt-2 border-t border-[var(--line)]">
+                <button onclick="GlobeTrotterState.setModalCity(${city.id})" class="btn-secondary text-xs">
+                  <i data-lucide="info" class="w-3.5 h-3.5"></i> Catalog
+                </button>
+                <button onclick="GlobeTrotterApp.startPlanning(${city.id})" class="btn-primary text-xs">
+                  <i data-lucide="calendar" class="w-3.5 h-3.5"></i> Plan Trip
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        </article>
       `;
     }).join('');
   }
@@ -308,23 +301,22 @@ class GlobeTrotterUI {
     const cityBanner = document.getElementById('planner-city-banner');
     if (cityBanner) {
       cityBanner.innerHTML = `
-        <div class="relative rounded-2xl overflow-hidden mb-6 h-40 sm:h-48 border border-amber-500/20">
-          <img src="${currentCity.heroImage}" alt="${currentCity.name}" class="w-full h-full object-cover" />
-          <div class="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/70 to-transparent"></div>
+        <div class="surface relative rounded-[var(--radius-card)] overflow-hidden mb-6 h-40 sm:h-48 border border-[var(--line)]">
+          <img src="${currentCity.heroImage}" alt="${currentCity.name}" class="w-full h-full object-cover" onerror="this.outerHTML='<div class=\\'postcard-placeholder h-full\\'><span class=\\'sun\\'></span></div>'" />
+          <div class="absolute inset-0 bg-gradient-to-r from-[var(--surface)] via-[var(--surface)]/70 to-transparent"></div>
           <div class="absolute inset-0 p-6 flex flex-col justify-between">
             <div class="flex justify-between items-start">
-              <span class="px-3 py-1 text-xs font-semibold rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 backdrop-blur">
-                ${currentCity.region} India • ${currentCity.bestTime} (City ID: ${currentCity.id})
+              <span class="chip text-xs">
+                ${currentCity.region} India • Best: ${currentCity.bestTime} (ID: ${currentCity.id})
               </span>
-              <div class="flex gap-2">
-                <button onclick="GlobeTrotterState.setModalCity(${currentCity.id})" class="px-2.5 py-1 text-xs font-medium bg-slate-900/80 hover:bg-slate-900 text-slate-300 rounded-lg border border-slate-700 backdrop-blur transition flex items-center gap-1">
-                  <i data-lucide="eye" class="w-3 h-3"></i> View Catalog
-                </button>
-              </div>
+              <button onclick="GlobeTrotterState.setModalCity(${currentCity.id})" class="btn-secondary text-xs">
+                <i data-lucide="eye" class="w-3 h-3"></i> View Catalog
+              </button>
             </div>
             <div>
-              <h2 class="text-3xl font-extrabold text-white tracking-tight">${currentCity.name}</h2>
-              <p class="text-sm text-amber-200/90 font-medium">${currentCity.tagline}</p>
+              <p class="eyebrow">${currentCity.state}</p>
+              <h2 class="text-3xl font-bold tracking-tight">${currentCity.name}</h2>
+              <p class="text-dim text-xs font-medium">${currentCity.tagline}</p>
             </div>
           </div>
         </div>
@@ -338,14 +330,14 @@ class GlobeTrotterUI {
         const p = PRESET_TIERS[pKey];
         const isActive = tripPlan.activePreset === pKey;
         return `
-          <button onclick="GlobeTrotterState.applyPreset('${pKey}')" class="p-3 rounded-xl border text-left transition ${isActive ? 'bg-amber-500/15 border-amber-500 text-white glow-amber' : 'bg-slate-800/60 border-slate-700 text-slate-300 hover:bg-slate-800'}">
+          <button onclick="GlobeTrotterState.applyPreset('${pKey}')" class="p-3.5 rounded-[var(--radius-control)] border text-left transition cursor-pointer ${isActive ? 'surface-elevated border-[var(--cyan)]' : 'surface-inset border-[var(--line)] hover:border-[var(--cyan)]'}">
             <div class="flex items-center justify-between mb-1">
-              <span class="font-bold text-xs flex items-center gap-1.5 ${isActive ? 'text-amber-400' : 'text-slate-200'}">
+              <span class="font-bold text-xs flex items-center gap-1.5 ${isActive ? 'text-[var(--cyan)]' : 'text-primary'}">
                 <i data-lucide="${p.icon}" class="w-3.5 h-3.5"></i> ${p.name}
               </span>
-              <span class="text-[10px] px-1.5 py-0.5 rounded font-semibold bg-slate-900/80 text-slate-400">${p.badge}</span>
+              <span class="eyebrow text-[9px]">${p.badge}</span>
             </div>
-            <p class="text-[11px] text-slate-400 line-clamp-2 leading-tight">${p.description}</p>
+            <p class="text-[11px] text-dim line-clamp-2 leading-tight">${p.description}</p>
           </button>
         `;
       }).join('');
@@ -377,21 +369,21 @@ class GlobeTrotterUI {
         const isSelected = tripPlan.hotelId === hotel.id;
         return `
           <label class="block cursor-pointer">
-            <div class="p-3.5 rounded-xl border transition flex items-center justify-between ${isSelected ? 'bg-amber-500/10 border-amber-500/80 text-white shadow-sm' : 'bg-slate-800/40 border-slate-700/60 hover:bg-slate-800/80 text-slate-300'}">
+            <div class="p-3.5 rounded-[var(--radius-control)] border transition flex items-center justify-between ${isSelected ? 'surface-inset border-[var(--cyan)]' : 'surface border-[var(--line)] hover:border-[var(--cyan)]'}">
               <div class="flex items-center gap-3">
-                <input type="radio" name="selected-hotel" value="${hotel.id}" ${isSelected ? 'checked' : ''} onchange="GlobeTrotterState.setHotel(${hotel.id})" class="w-4 h-4 text-amber-500 focus:ring-amber-500 bg-slate-900 border-slate-700" />
+                <input type="radio" name="selected-hotel" value="${hotel.id}" ${isSelected ? 'checked' : ''} onchange="GlobeTrotterState.setHotel(${hotel.id})" class="custom-checkbox" />
                 <div>
                   <div class="flex items-center gap-2">
-                    <span class="font-bold text-sm text-white">${hotel.name}</span>
-                    <span class="text-[10px] font-semibold px-2 py-0.5 rounded bg-slate-900 text-amber-300 border border-slate-700">${hotel.tier}</span>
-                    <span class="text-[10px] text-slate-500">#${hotel.id}</span>
+                    <span class="font-bold text-sm text-primary">${hotel.name}</span>
+                    <span class="chip text-[10px] py-0.5 px-1.5">${hotel.tier}</span>
+                    <span class="stat-mono text-[10px] text-dim">#${hotel.id}</span>
                   </div>
-                  <p class="text-xs text-slate-400 mt-0.5">${hotel.location} • <span class="text-amber-400">★ ${hotel.rating}</span> • <span class="text-slate-500">${hotel.amenities.slice(0, 2).join(', ')}</span></p>
+                  <p class="text-xs text-dim mt-0.5">${hotel.location} • <span class="rating">★ ${hotel.rating}</span> • <span class="text-dim">${hotel.amenities.slice(0, 2).join(', ')}</span></p>
                 </div>
               </div>
               <div class="text-right">
-                <span class="text-base font-extrabold text-amber-400 block">${this.planner.formatPrice(hotel.price_per_night, currency)}</span>
-                <span class="text-[10px] text-slate-400 uppercase tracking-wider">per night</span>
+                <span class="price text-sm font-semibold block">${this.planner.formatPrice(hotel.price_per_night, currency)}</span>
+                <span class="stat-mono text-[10px] text-dim uppercase">per night</span>
               </div>
             </div>
           </label>
@@ -407,25 +399,25 @@ class GlobeTrotterUI {
         const isFree = act.price_per_person === 0;
         return `
           <label class="block cursor-pointer">
-            <div class="p-3.5 rounded-xl border transition flex items-center justify-between ${isSelected ? 'bg-emerald-500/10 border-emerald-500/60 text-white shadow-sm' : 'bg-slate-800/40 border-slate-700/60 hover:bg-slate-800/80 text-slate-300'}">
+            <div class="p-3.5 rounded-[var(--radius-control)] border transition flex items-center justify-between ${isSelected ? 'surface-inset border-[var(--cyan)]' : 'surface border-[var(--line)] hover:border-[var(--cyan)]'}">
               <div class="flex items-center gap-3 flex-1 pr-3">
                 <input type="checkbox" ${isSelected ? 'checked' : ''} onchange="GlobeTrotterState.toggleActivity(${act.id})" class="custom-checkbox" />
                 <div class="flex-1">
                   <div class="flex items-center gap-2">
-                    <span class="font-bold text-sm ${isSelected ? 'text-white' : 'text-slate-200'}">${act.name}</span>
-                    <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-900 text-slate-300 border border-slate-700">${act.category}</span>
-                    <span class="text-[10px] text-slate-500">#${act.id}</span>
-                    ${act.highlight ? '<span class="text-[10px] text-amber-400 font-bold">★ Highlight</span>' : ''}
+                    <span class="font-bold text-sm text-primary">${act.name}</span>
+                    <span class="chip text-[10px] py-0.5 px-1.5">${act.category}</span>
+                    <span class="stat-mono text-[10px] text-dim">#${act.id}</span>
+                    ${act.highlight ? '<span class="rating text-[10px] font-bold">★ Highlight</span>' : ''}
                   </div>
-                  <p class="text-xs text-slate-400 mt-0.5 line-clamp-1">${act.description}</p>
+                  <p class="text-xs text-dim mt-0.5 line-clamp-1">${act.description}</p>
                 </div>
               </div>
               <div class="text-right shrink-0">
                 ${isFree ? `
-                  <span class="text-xs font-extrabold text-emerald-400 px-2 py-0.5 rounded bg-emerald-950 border border-emerald-500/40">FREE (₹0)</span>
+                  <span class="chip active text-[10px] py-0.5 px-2">FREE</span>
                 ` : `
-                  <span class="text-sm font-bold text-slate-200 block">${this.planner.formatPrice(act.price_per_person, currency)}</span>
-                  <span class="text-[10px] text-slate-400 uppercase">per person</span>
+                  <span class="price text-sm font-semibold block">${this.planner.formatPrice(act.price_per_person, currency)}</span>
+                  <span class="stat-mono text-[10px] text-dim uppercase">per pax</span>
                 `}
               </div>
             </div>
@@ -452,28 +444,28 @@ class GlobeTrotterUI {
     for (let day = 1; day <= nights; day++) {
       const daySlots = schedule[day] || { morning: null, afternoon: null, evening: null };
 
-      const renderSlot = (slotKey, label, colorClass) => {
+      const renderSlot = (slotKey, label) => {
         const actId = daySlots[slotKey];
         const act = actId ? cityActs.find(a => a.id === parseInt(actId)) : null;
 
         return `
-          <div class="p-2.5 rounded-lg bg-slate-900/90 border border-slate-700/60 flex flex-col justify-between min-h-[85px]">
+          <div class="p-2.5 rounded-[var(--radius-control)] surface-inset border border-[var(--line)] flex flex-col justify-between min-h-[85px]">
             <div class="flex justify-between items-center mb-1">
-              <span class="text-[10px] uppercase font-bold ${colorClass}">${label}</span>
+              <span class="eyebrow text-[10px]">${label}</span>
               ${act ? `
-                <button onclick="GlobeTrotterState.setScheduleSlot(${day}, '${slotKey}', null)" class="text-slate-500 hover:text-rose-400 text-xs transition" title="Clear slot">
+                <button onclick="GlobeTrotterState.setScheduleSlot(${day}, '${slotKey}', null)" class="text-dim hover:text-rose-500 text-xs transition cursor-pointer" title="Clear slot">
                   <i data-lucide="x" class="w-3 h-3"></i>
                 </button>
               ` : ''}
             </div>
             
             ${act ? `
-              <div class="text-xs font-semibold text-slate-200 line-clamp-2 leading-tight">
+              <div class="text-xs font-medium text-primary line-clamp-2 leading-tight">
                 ${act.name}
               </div>
-              <span class="text-[10px] text-amber-400 mt-1 font-medium">${act.category} • ${act.duration}</span>
+              <span class="stat-mono text-[10px] text-[var(--cyan)] mt-1">${act.category} • ${act.duration}</span>
             ` : `
-              <select onchange="GlobeTrotterState.setScheduleSlot(${day}, '${slotKey}', this.value || null)" class="w-full text-xs bg-slate-800 border border-slate-700 rounded p-1 text-slate-400 focus:text-white focus:outline-none">
+              <select onchange="GlobeTrotterState.setScheduleSlot(${day}, '${slotKey}', this.value || null)" class="select-control w-full text-xs p-1 text-dim">
                 <option value="">+ Assign Activity...</option>
                 ${selectedActs.map(a => `<option value="${a.id}">${a.name}</option>`).join('')}
               </select>
@@ -483,15 +475,15 @@ class GlobeTrotterUI {
       };
 
       html += `
-        <div class="p-4 rounded-xl bg-slate-800/40 border border-slate-700/70 flex flex-col">
-          <div class="flex items-center justify-between pb-2 mb-3 border-b border-slate-700/60">
-            <span class="font-extrabold text-sm text-amber-400">Day ${day}</span>
-            <span class="text-[11px] text-slate-400 font-medium">3 Time Slots</span>
+        <div class="p-4 rounded-[var(--radius-card)] surface border border-[var(--line)] flex flex-col">
+          <div class="flex items-center justify-between pb-2 mb-3 border-b border-[var(--line)]">
+            <span class="eyebrow text-xs">Day ${day} Itinerary</span>
+            <span class="stat-mono text-[11px] text-dim">3 Slots</span>
           </div>
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            ${renderSlot('morning', 'Morning', 'text-amber-400')}
-            ${renderSlot('afternoon', 'Afternoon', 'text-cyan-400')}
-            ${renderSlot('evening', 'Evening', 'text-purple-400')}
+            ${renderSlot('morning', 'Morning')}
+            ${renderSlot('afternoon', 'Afternoon')}
+            ${renderSlot('evening', 'Evening')}
           </div>
         </div>
       `;
@@ -547,22 +539,18 @@ class GlobeTrotterUI {
         insightsContainer.innerHTML = '';
       } else {
         insightsContainer.innerHTML = insights.map(ins => `
-          <div class="p-3 rounded-xl text-xs border flex items-start gap-2.5 ${
-            ins.type === 'warning' ? 'bg-amber-500/10 border-amber-500/30 text-amber-200' :
-            ins.type === 'tip' ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-200' :
-            'bg-emerald-500/10 border-emerald-500/30 text-emerald-200'
-          }">
-            <i data-lucide="${ins.icon}" class="w-4 h-4 shrink-0 mt-0.5"></i>
+          <div class="p-3 rounded-[var(--radius-control)] text-xs border border-[var(--line)] surface-inset flex items-start gap-2.5">
+            <i data-lucide="${ins.icon}" class="w-4 h-4 text-[var(--cyan)] shrink-0 mt-0.5"></i>
             <div>
-              <span class="font-bold block">${ins.title}</span>
-              <p class="text-[11px] opacity-90 mt-0.5">${ins.message}</p>
+              <span class="font-bold block text-primary">${ins.title}</span>
+              <p class="text-[11px] text-dim mt-0.5">${ins.message}</p>
               ${ins.actionHotelId ? `
-                <button onclick="GlobeTrotterState.setHotel(${ins.actionHotelId})" class="mt-1.5 px-2 py-0.5 rounded bg-amber-500 text-slate-950 font-bold text-[10px]">
+                <button onclick="GlobeTrotterState.setHotel(${ins.actionHotelId})" class="btn-primary text-[10px] py-0.5 px-2 mt-1.5">
                   Switch Stay
                 </button>
               ` : ''}
               ${ins.actionActivityId ? `
-                <button onclick="GlobeTrotterState.toggleActivity(${ins.actionActivityId})" class="mt-1.5 px-2 py-0.5 rounded bg-cyan-500 text-slate-950 font-bold text-[10px]">
+                <button onclick="GlobeTrotterState.toggleActivity(${ins.actionActivityId})" class="btn-secondary text-[10px] py-0.5 px-2 mt-1.5">
                   + Add Free Walk
                 </button>
               ` : ''}
@@ -582,11 +570,11 @@ class GlobeTrotterUI {
 
     if (saved.length === 0) {
       container.innerHTML = `
-        <div class="text-center py-16 text-slate-400 col-span-full">
-          <i data-lucide="bookmark-x" class="w-12 h-12 mx-auto mb-3 text-slate-600"></i>
-          <h3 class="text-lg font-bold text-white">No saved trips yet</h3>
+        <div class="text-center py-16 text-dim col-span-full">
+          <i data-lucide="bookmark-x" class="w-12 h-12 mx-auto mb-3 text-dim"></i>
+          <h3 class="text-lg font-bold text-primary">No saved trips yet</h3>
           <p class="text-sm mt-1">Configure your custom itinerary and click "Save Trip" to store it via the API.</p>
-          <button onclick="GlobeTrotterState.setView('planner')" class="mt-4 px-4 py-2 rounded-lg bg-amber-500 text-slate-950 font-bold text-xs transition">
+          <button onclick="GlobeTrotterState.setView('planner')" class="btn-primary mt-4">
             Go to Planner
           </button>
         </div>
@@ -601,43 +589,43 @@ class GlobeTrotterUI {
       const actCount = stop && stop.activities ? stop.activities.length : 0;
 
       return `
-        <div class="glass-card rounded-2xl p-5 border border-slate-700/80 flex flex-col justify-between">
+        <div class="surface-elevated p-5 flex flex-col justify-between">
           <div>
             <div class="flex justify-between items-start mb-2">
               <div>
-                <span class="text-xs text-amber-400 font-bold uppercase tracking-wider">${city.name}, ${city.state || ''}</span>
-                <h4 class="text-xl font-bold text-white mt-0.5">${trip.name}</h4>
+                <p class="eyebrow">${city.name}, ${city.state || ''}</p>
+                <h4 class="text-xl font-bold text-primary mt-0.5">${trip.name}</h4>
               </div>
-              <button onclick="GlobeTrotterApp.deleteTrip(${trip.id})" class="text-slate-500 hover:text-rose-400 p-1 transition" title="Delete Trip">
+              <button onclick="GlobeTrotterApp.deleteTrip(${trip.id})" class="text-dim hover:text-rose-500 p-1 transition cursor-pointer" title="Delete Trip">
                 <i data-lucide="trash-2" class="w-4 h-4"></i>
               </button>
             </div>
             
-            <p class="text-xs text-slate-400 mb-4">
-              ${trip.start_date || '2026-09-01'} to ${trip.end_date || '2026-09-04'} • ${trip.num_people || 2} Travelers ${trip.is_public ? '<span class="text-emerald-400 font-bold">• Public</span>' : ''}
+            <p class="text-xs text-dim mb-4">
+              ${trip.start_date || '2026-09-01'} to ${trip.end_date || '2026-09-04'} • ${trip.num_people || 2} Travelers
             </p>
 
-            <div class="p-3 rounded-xl bg-slate-900/60 border border-slate-700/50 mb-4 text-xs space-y-1">
-              <div class="flex justify-between text-slate-300">
+            <div class="p-3 rounded-[var(--radius-control)] surface-inset mb-4 text-xs space-y-1">
+              <div class="flex justify-between text-dim">
                 <span>Hotel:</span>
-                <span class="font-medium text-white">${hotel ? hotel.name : 'Custom Stay'}</span>
+                <span class="font-medium text-primary">${hotel ? hotel.name : 'Custom Stay'}</span>
               </div>
-              <div class="flex justify-between text-slate-300">
+              <div class="flex justify-between text-dim">
                 <span>Experiences:</span>
-                <span class="font-medium text-white">${actCount} booked</span>
+                <span class="font-medium text-primary">${actCount} booked</span>
               </div>
-              <div class="flex justify-between text-slate-300 border-t border-slate-800 pt-1 mt-1 font-bold">
+              <div class="flex justify-between text-dim border-t border-[var(--line)] pt-1 mt-1 font-bold">
                 <span>Share Slug:</span>
-                <span class="text-slate-400 font-mono text-[10px]">${trip.share_slug || 'n/a'}</span>
+                <span class="stat-mono text-[10px] text-[var(--cyan)]">${trip.share_slug || 'n/a'}</span>
               </div>
             </div>
           </div>
 
-          <div class="grid grid-cols-2 gap-2 pt-2 border-t border-slate-700/40">
-            <button onclick="GlobeTrotterApp.loadAndOpenTrip(${trip.id})" class="px-3 py-2 text-xs font-bold rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 transition flex items-center justify-center gap-1.5">
+          <div class="grid grid-cols-2 gap-2 pt-2 border-t border-[var(--line)]">
+            <button onclick="GlobeTrotterApp.loadAndOpenTrip(${trip.id})" class="btn-primary text-xs">
               <i data-lucide="folder-open" class="w-3.5 h-3.5"></i> Load Trip
             </button>
-            <button onclick="GlobeTrotterExport.printItinerary()" class="px-3 py-2 text-xs font-semibold rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 transition flex items-center justify-center gap-1.5">
+            <button onclick="GlobeTrotterExport.printItinerary()" class="btn-secondary text-xs">
               <i data-lucide="printer" class="w-3.5 h-3.5"></i> Print / PDF
             </button>
           </div>
@@ -659,7 +647,7 @@ class GlobeTrotterUI {
       selectorContainer.innerHTML = CITIES_DATA.map(city => {
         const isChecked = cityIds.includes(city.id);
         return `
-          <button onclick="GlobeTrotterState.toggleComparisonCity(${city.id})" class="px-3 py-1.5 rounded-lg text-xs font-medium border transition ${isChecked ? 'bg-amber-500 text-slate-950 border-amber-500 font-bold' : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'}">
+          <button onclick="GlobeTrotterState.toggleComparisonCity(${city.id})" class="chip text-xs ${isChecked ? 'active' : ''}">
             ${city.name} ${isChecked ? '✓' : '+'}
           </button>
         `;
@@ -667,53 +655,53 @@ class GlobeTrotterUI {
     }
 
     if (comparisonData.length === 0) {
-      container.innerHTML = `<p class="text-center text-slate-400 py-12">Select at least 2 cities above to compare.</p>`;
+      container.innerHTML = `<p class="text-center text-dim py-12">Select at least 2 cities above to compare.</p>`;
       return;
     }
 
     container.innerHTML = `
       <div class="grid grid-cols-1 md:grid-cols-${comparisonData.length} gap-6">
         ${comparisonData.map(c => `
-          <div class="glass-card rounded-2xl p-5 border border-slate-700 flex flex-col justify-between">
+          <div class="surface-elevated p-5 flex flex-col justify-between">
             <div>
-              <div class="relative h-32 rounded-xl overflow-hidden mb-4">
-                <img src="${c.heroImage}" alt="${c.name}" class="w-full h-full object-cover" />
-                <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent"></div>
+              <div class="relative h-32 rounded-[var(--radius-control)] overflow-hidden mb-4">
+                <img src="${c.heroImage}" alt="${c.name}" class="w-full h-full object-cover" onerror="this.outerHTML='<div class=\\'postcard-placeholder h-full\\'><span class=\\'sun\\'></span></div>'" />
+                <div class="absolute inset-0 bg-gradient-to-t from-[var(--surface)] via-transparent to-transparent"></div>
                 <div class="absolute bottom-2 left-3 right-3">
-                  <h4 class="text-xl font-bold text-white">${c.name}</h4>
-                  <p class="text-[11px] text-amber-300 font-medium">${c.state} • ${c.region} India</p>
+                  <h4 class="text-xl font-bold text-primary">${c.name}</h4>
+                  <p class="eyebrow">${c.state} • ${c.region} India</p>
                 </div>
               </div>
 
-              <div class="space-y-2.5 text-xs text-slate-300 mb-6">
-                <div class="flex justify-between py-1.5 border-b border-slate-800">
-                  <span class="text-slate-400">Best Season:</span>
-                  <span class="font-semibold text-white">${c.bestTime}</span>
+              <div class="space-y-2.5 text-xs text-dim mb-6">
+                <div class="flex justify-between py-1.5 border-b border-[var(--line)]">
+                  <span>Best Season:</span>
+                  <span class="font-medium text-primary">${c.bestTime}</span>
                 </div>
-                <div class="flex justify-between py-1.5 border-b border-slate-800">
-                  <span class="text-slate-400">Lowest Nightly Stay:</span>
-                  <span class="font-bold text-emerald-400">${this.planner.formatPrice(c.stats.lowestHotelPrice, currency)}</span>
+                <div class="flex justify-between py-1.5 border-b border-[var(--line)]">
+                  <span>Lowest Nightly Stay:</span>
+                  <span class="price font-medium">${this.planner.formatPrice(c.stats.lowestHotelPrice, currency)}</span>
                 </div>
-                <div class="flex justify-between py-1.5 border-b border-slate-800">
-                  <span class="text-slate-400">Luxury Nightly Stay:</span>
-                  <span class="font-bold text-purple-400">${this.planner.formatPrice(c.stats.highestHotelPrice, currency)}</span>
+                <div class="flex justify-between py-1.5 border-b border-[var(--line)]">
+                  <span>Luxury Nightly Stay:</span>
+                  <span class="price font-medium">${this.planner.formatPrice(c.stats.highestHotelPrice, currency)}</span>
                 </div>
-                <div class="flex justify-between py-1.5 border-b border-slate-800">
-                  <span class="text-slate-400">Free Activities:</span>
-                  <span class="font-bold text-cyan-400">${c.stats.freeActivitiesCount} of 10</span>
+                <div class="flex justify-between py-1.5 border-b border-[var(--line)]">
+                  <span>Free Activities:</span>
+                  <span class="stat-mono font-medium text-[var(--cyan)]">${c.stats.freeActivitiesCount} of 10</span>
                 </div>
-                <div class="flex justify-between py-1.5 border-b border-slate-800">
-                  <span class="text-slate-400">Backpacker 3D/2N:</span>
-                  <span class="font-bold text-amber-400">${this.planner.formatPrice(c.stats.sampleBackpackerTotal, currency)}</span>
+                <div class="flex justify-between py-1.5 border-b border-[var(--line)]">
+                  <span>Backpacker 3D/2N:</span>
+                  <span class="price font-medium">${this.planner.formatPrice(c.stats.sampleBackpackerTotal, currency)}</span>
                 </div>
-                <div class="flex justify-between py-1.5 border-b border-slate-800">
-                  <span class="text-slate-400">Ultra Luxury 3D/2N:</span>
-                  <span class="font-bold text-amber-300">${this.planner.formatPrice(c.stats.sampleLuxuryTotal, currency)}</span>
+                <div class="flex justify-between py-1.5 border-b border-[var(--line)]">
+                  <span>Ultra Luxury 3D/2N:</span>
+                  <span class="price font-medium">${this.planner.formatPrice(c.stats.sampleLuxuryTotal, currency)}</span>
                 </div>
               </div>
             </div>
 
-            <button onclick="GlobeTrotterApp.startPlanning(${c.id})" class="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition">
+            <button onclick="GlobeTrotterApp.startPlanning(${c.id})" class="btn-primary w-full">
               Select ${c.name}
             </button>
           </div>
@@ -737,51 +725,51 @@ class GlobeTrotterUI {
 
     modalContent.innerHTML = `
       <div class="relative">
-        <button onclick="GlobeTrotterState.setModalCity(null)" class="absolute top-4 right-4 z-20 w-8 h-8 rounded-full bg-slate-900/80 hover:bg-slate-900 text-slate-300 hover:text-white flex items-center justify-center transition border border-slate-700">
+        <button onclick="GlobeTrotterState.setModalCity(null)" class="theme-toggle absolute top-4 right-4 z-20" aria-label="Close modal">
           <i data-lucide="x" class="w-4 h-4"></i>
         </button>
 
-        <div class="relative h-64 sm:h-72 rounded-t-3xl overflow-hidden">
-          <img src="${city.heroImage}" alt="${city.name}" class="w-full h-full object-cover" />
-          <div class="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/50 to-transparent"></div>
+        <div class="relative h-64 sm:h-72 rounded-t-[var(--radius-card)] overflow-hidden">
+          <img src="${city.heroImage}" alt="${city.name}" class="w-full h-full object-cover" onerror="this.outerHTML='<div class=\\'postcard-placeholder h-full\\'><span class=\\'sun\\'></span></div>'" />
+          <div class="absolute inset-0 bg-gradient-to-t from-[var(--surface)] via-transparent to-transparent"></div>
           <div class="absolute bottom-6 left-6 right-6">
             <div class="flex gap-2 mb-2">
-              <span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 backdrop-blur">
-                ${city.region} India • ${city.state} (City #${city.id})
+              <span class="chip text-xs">
+                ${city.region} India • ${city.state} (#${city.id})
               </span>
-              <span class="px-2.5 py-1 text-xs font-medium rounded-full bg-slate-900/80 text-slate-300 backdrop-blur">
-                Best Time: ${city.bestTime}
+              <span class="chip text-xs">
+                Best: ${city.bestTime}
               </span>
             </div>
-            <h2 class="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">${city.name}</h2>
-            <p class="text-sm sm:text-base text-amber-200/90 font-medium">${city.tagline}</p>
+            <h2 class="text-3xl sm:text-4xl font-extrabold text-primary">${city.name}</h2>
+            <p class="text-dim text-sm sm:text-base font-medium">${city.tagline}</p>
           </div>
         </div>
 
         <div class="p-6 sm:p-8 space-y-8">
-          <p class="text-sm sm:text-base text-slate-300 leading-relaxed">${city.description}</p>
+          <p class="text-sm sm:text-base text-dim leading-relaxed">${city.description}</p>
 
           <div>
             <div class="flex justify-between items-center mb-4">
-              <h3 class="text-lg font-bold text-white flex items-center gap-2">
-                <i data-lucide="hotel" class="w-5 h-5 text-amber-400"></i> GET /api/cities/${city.id}/hotels (${cityHotels.length} Stays)
+              <h3 class="text-lg font-bold text-primary flex items-center gap-2">
+                <i data-lucide="hotel" class="w-4 h-4 text-[var(--cyan)]"></i> GET /api/cities/${city.id}/hotels (${cityHotels.length} Stays)
               </h3>
-              <span class="text-xs text-slate-400">Rates per night</span>
+              <span class="eyebrow">Rates per night</span>
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               ${cityHotels.map((h, i) => `
-                <div class="p-3.5 rounded-xl bg-slate-800/60 border border-slate-700/60 flex items-center justify-between">
+                <div class="p-3.5 rounded-[var(--radius-control)] surface-inset flex items-center justify-between border border-[var(--line)]">
                   <div>
                     <div class="flex items-center gap-1.5">
-                      <span class="text-xs font-bold text-amber-400">#${h.id}</span>
-                      <span class="font-bold text-sm text-white">${h.name}</span>
+                      <span class="stat-mono text-xs text-[var(--cyan)]">#${h.id}</span>
+                      <span class="font-bold text-sm text-primary">${h.name}</span>
                     </div>
-                    <p class="text-xs text-slate-400 mt-0.5"><span class="text-amber-300">${h.tier}</span> • ${h.location}</p>
-                    <p class="text-[11px] text-slate-500 mt-0.5">${h.amenities.join(', ')}</p>
+                    <p class="text-xs text-dim mt-0.5"><span class="font-medium">${h.tier}</span> • ${h.location}</p>
+                    <p class="text-[11px] text-dim mt-0.5">${h.amenities.join(', ')}</p>
                   </div>
                   <div class="text-right">
-                    <span class="text-sm font-extrabold text-amber-400 block">${this.planner.formatPrice(h.price_per_night, currency)}</span>
-                    <span class="text-[10px] text-slate-400">/ night</span>
+                    <span class="price text-sm font-semibold block">${this.planner.formatPrice(h.price_per_night, currency)}</span>
+                    <span class="stat-mono text-[10px] text-dim">/ night</span>
                   </div>
                 </div>
               `).join('')}
@@ -790,28 +778,28 @@ class GlobeTrotterUI {
 
           <div>
             <div class="flex justify-between items-center mb-4">
-              <h3 class="text-lg font-bold text-white flex items-center gap-2">
-                <i data-lucide="compass" class="w-5 h-5 text-emerald-400"></i> GET /api/cities/${city.id}/activities (${cityActs.length} Experiences)
+              <h3 class="text-lg font-bold text-primary flex items-center gap-2">
+                <i data-lucide="compass" class="w-4 h-4 text-[var(--cyan)]"></i> GET /api/cities/${city.id}/activities (${cityActs.length} Experiences)
               </h3>
-              <span class="text-xs text-slate-400">Estimates per person</span>
+              <span class="eyebrow">Estimates per person</span>
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               ${cityActs.map((a, i) => `
-                <div class="p-3.5 rounded-xl bg-slate-800/60 border border-slate-700/60 flex items-start justify-between gap-3">
+                <div class="p-3.5 rounded-[var(--radius-control)] surface-inset flex items-start justify-between gap-3 border border-[var(--line)]">
                   <div class="flex-1">
                     <div class="flex items-center gap-1.5 flex-wrap">
-                      <span class="text-xs font-bold text-emerald-400">#${a.id}</span>
-                      <span class="font-bold text-sm text-white">${a.name}</span>
-                      <span class="text-[10px] px-1.5 py-0.2 rounded bg-slate-900 text-slate-300">${a.category}</span>
+                      <span class="stat-mono text-xs text-[var(--cyan)]">#${a.id}</span>
+                      <span class="font-bold text-sm text-primary">${a.name}</span>
+                      <span class="chip text-[10px] py-0.5 px-1.5">${a.category}</span>
                     </div>
-                    <p class="text-xs text-slate-400 mt-1 leading-relaxed">${a.description}</p>
+                    <p class="text-xs text-dim mt-1 leading-relaxed">${a.description}</p>
                   </div>
                   <div class="text-right shrink-0">
                     ${a.price_per_person === 0 ? `
-                      <span class="text-xs font-bold text-emerald-400 px-2 py-0.5 rounded bg-emerald-950 border border-emerald-500/40">FREE</span>
+                      <span class="chip active text-[10px] py-0.5 px-2">FREE</span>
                     ` : `
-                      <span class="text-sm font-bold text-slate-200 block">${this.planner.formatPrice(a.price_per_person, currency)}</span>
-                      <span class="text-[10px] text-slate-400">/ person</span>
+                      <span class="price text-sm font-semibold block">${this.planner.formatPrice(a.price_per_person, currency)}</span>
+                      <span class="stat-mono text-[10px] text-dim">/ person</span>
                     `}
                   </div>
                 </div>
@@ -819,11 +807,11 @@ class GlobeTrotterUI {
             </div>
           </div>
 
-          <div class="pt-6 border-t border-slate-700/60 flex flex-col sm:flex-row justify-between items-center gap-4">
-            <div class="text-xs text-slate-400 text-center sm:text-left">
-              Build an API-synced custom itinerary for <strong class="text-white">${city.name}</strong>
+          <div class="pt-6 border-t border-[var(--line)] flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div class="text-xs text-dim text-center sm:text-left">
+              Build an API-synced custom itinerary for <strong class="text-primary">${city.name}</strong>
             </div>
-            <button onclick="GlobeTrotterApp.startPlanning(${city.id})" class="w-full sm:w-auto px-6 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-extrabold text-sm transition shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2">
+            <button onclick="GlobeTrotterApp.startPlanning(${city.id})" class="btn-primary w-full sm:w-auto">
               <i data-lucide="sparkles" class="w-4 h-4"></i> Start Customizing Itinerary
             </button>
           </div>

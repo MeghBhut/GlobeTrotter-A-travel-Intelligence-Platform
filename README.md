@@ -1,6 +1,22 @@
 # GlobeTrotter — Travel Intelligence Platform
 
-A modern, responsive web application for exploring Indian destinations, configuring custom travel itineraries, and calculating real-time travel budgets. Fully integrated with **API Contract v1**.
+A modern, responsive web application for exploring Indian destinations, configuring custom travel itineraries, and calculating real-time travel budgets. Fully integrated with **API Contract v1** and designed with the **Cyanotype Theme**.
+
+---
+
+## 🎨 Cyanotype Design System
+
+GlobeTrotter implements the official **Cyanotype Theme** specifications:
+- **Light & Dark Mode**: Seamless toggle with zero-flash pre-paint initialization script and persistence under localStorage key `cyanotype-theme`.
+- **Typography & Font Roles**:
+  - **Headings & Titles**: *Bricolage Grotesque* (weights 500, 600, tracking -0.02em)
+  - **Body & UI Controls**: *Hanken Grotesk* (weights 400, 500)
+  - **Meta, Prices, Ratings, Eyebrows**: *Spline Sans Mono*
+- **Color Roles**:
+  - **Cyan (`--cyan`)**: Primary action color used for navigation active states, links, primary buttons, category chips, and eyebrow labels.
+  - **Warm Gold (`--sun`)**: Strictly dedicated to prices, ratings (★), and sun graphics.
+  - **Surfaces & Insets**: High-contrast, accessibility-compliant surface tokens (`--bg`, `--surface`, `--surface-2`, `--line`, `--ink`, `--ink-dim`).
+- **Postcard Placeholders**: Fallback graphic bands (sky over sea with circular sun) for image placeholders.
 
 ---
 
@@ -38,23 +54,17 @@ The frontend features a dual-mode API adapter located in [`js/api.js`](./js/api.
 
 ---
 
-## 🌟 Seed Dataset Reference (Exact Numeric IDs)
-
-- **10 Destinations** (IDs 1–10): Mumbai (`1`), New Delhi (`2`), Jaipur (`3`), Bengaluru (`4`), Varanasi (`5`), Udaipur (`6`), Kolkata (`7`), Kochi (`8`), Hyderabad (`9`), Goa (`10`).
-- **100 Activities** (IDs 101–1010): Structured with `city_id`, `price_per_person`, `category`, and `duration`.
-- **100 Hotels** (IDs 1001–10010): Structured with `city_id`, `tier`, `price_per_night`, `rating`, and `amenities`.
-
----
-
 ## 📁 Project Structure
 
 ```
 GlobeTrotter-A-travel-Intelligence-Platform/
 ├── index.html              # Single Page Application layout
 ├── API_CONTRACT.md         # Full REST API Contract (v1)
+├── cyanotype-theme.txt     # Cyanotype design system specifications
 ├── css/
-│   └── styles.css          # Theme tokens, glassmorphism, and print stylesheet
+│   └── styles.css          # Cyanotype tokens, font roles, components, and print styles
 ├── js/
+│   ├── theme.js            # Light/dark theme toggle & persistence engine
 │   ├── data.js             # 10 Indian destinations, 100 activities, 100 hotels seed data
 │   ├── api.js              # REST API Client & dual-mode mock adapter
 │   ├── planner.js          # Financial calculation, budget optimizer & comparison engine

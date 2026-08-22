@@ -1,5 +1,5 @@
 /**
- * GlobeTrotter Application Controller (API Contract v1 Compliant)
+ * GlobeTrotter Application Controller (Cyanotype Theme & API Contract v1)
  */
 
 class GlobeTrotterApp {
@@ -12,7 +12,7 @@ class GlobeTrotterApp {
   }
 
   init() {
-    console.log('🌏 GlobeTrotter API Contract v1 Client Ready');
+    console.log('🌏 GlobeTrotter Cyanotype Theme & API Contract v1 Client Ready');
     this.ui.init();
     this.setupGlobalShortcuts();
     this.setupPlannerFormListeners();
@@ -165,13 +165,12 @@ class GlobeTrotterApp {
     }
 
     const toast = document.createElement('div');
-    toast.className = `px-4 py-3 rounded-xl text-xs font-semibold shadow-xl border backdrop-blur-md pointer-events-auto flex items-center gap-2 transform transition-all duration-300 translate-y-2 opacity-0 ${
-      type === 'success' ? 'bg-emerald-950/90 border-emerald-500/50 text-emerald-200' :
-      type === 'warning' ? 'bg-amber-950/90 border-amber-500/50 text-amber-200' :
-      'bg-slate-900/90 border-slate-700 text-slate-200'
-    }`;
+    toast.className = 'surface-elevated px-4 py-3 text-xs font-medium border border-[var(--line)] shadow-lg pointer-events-auto flex items-center gap-2 transform transition-all duration-300 translate-y-2 opacity-0 text-[var(--ink)]';
 
-    toast.innerHTML = `<span>${message}</span>`;
+    toast.innerHTML = `
+      <span class="w-2 h-2 rounded-full ${type === 'success' ? 'bg-[var(--cyan)]' : type === 'warning' ? 'bg-[var(--sun)]' : 'bg-[var(--ink-dim)]'}"></span>
+      <span>${message}</span>
+    `;
     toastContainer.appendChild(toast);
 
     setTimeout(() => {
