@@ -318,6 +318,25 @@ class GlobeTrotterAppClass {
     }
   }
 
+  async addActivityToCalendar(date, slot, activityId) {
+    if (!activityId) return;
+    try {
+      await this.state.addActivityToCalendar(date, slot, activityId);
+      this.showToast('Activity added to calendar', 'success');
+    } catch (e) {
+      this.showToast(`Unable to add activity: ${e.message}`, 'warning');
+    }
+  }
+
+  async rescheduleCalendarActivity(stopActivityId, scheduledDate, slot) {
+    try {
+      await this.state.rescheduleActivity(stopActivityId, scheduledDate, slot);
+      this.showToast('Activity moved on the calendar', 'success');
+    } catch (e) {
+      this.showToast(`Unable to move activity: ${e.message}`, 'warning');
+    }
+  }
+
   // ==================== BACKEND CONNECTION PING ====================
 
   async pingBackend() {

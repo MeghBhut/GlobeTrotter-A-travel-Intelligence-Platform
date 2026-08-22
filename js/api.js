@@ -487,7 +487,7 @@ class GlobeTrotterAPI {
 
   // ==================== 5. ACTIVITIES IN STOPS ====================
 
-  async addStopActivity(stopId, { activity_id, num_people = 1 }) {
+  async addStopActivity(stopId, { activity_id, num_people = 1, scheduled_date = null, slot = null }) {
     const numStopId = parseInt(stopId);
     const numActId = parseInt(activity_id);
 
@@ -495,7 +495,7 @@ class GlobeTrotterAPI {
       const res = await fetch(`${this.BASE_URL}/api/stops/${numStopId}/activities`, {
         method: 'POST',
         headers: this.getAuthHeaders(),
-        body: JSON.stringify({ activity_id: numActId, num_people })
+        body: JSON.stringify({ activity_id: numActId, num_people, scheduled_date, slot })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || 'Failed to add activity');
@@ -516,7 +516,9 @@ class GlobeTrotterAPI {
             activity_id: numActId,
             name: activityRef ? activityRef.name : "Activity",
             price_per_person: activityRef ? activityRef.price_per_person : 0,
-            num_people: num_people
+            num_people: num_people,
+            scheduled_date,
+            slot
           };
           stop.activities.push(createdActLine);
         }
@@ -525,6 +527,90 @@ class GlobeTrotterAPI {
 
     localStorage.setItem(this.MOCK_TRIPS_KEY, JSON.stringify(mockTrips));
     return createdActLine;
+  }
+
+  async updateStopActivity(stopActivityId, updateData) {
+    const numId = parseInt(stopActivityId);
+    if (this.isLiveBackend && this.token) {
+      const res = await fetch(`${this.BASE_URL}/api/stop-activities/${numId}`, {
+        method: 'PUT',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify(updateData)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Failed to update activity schedule');
+      return data;
+    }
+
+    const mockTrips = JSON.parse(localStorage.getItem(this.MOCK_TRIPS_KEY) || '[]');
+    let updated = null;
+    mockTrips.forEach(trip => (trip.stops || []).forEach(stop => {
+      const line = (stop.activities || []).find(a => a.id === numId);
+      if (line) {
+        Object.assign(line, updateData);
+        updated = line;
+      }
+    }));
+    localStorage.setItem(this.MOCK_TRIPS_KEY, JSON.stringify(mockTrips));
+    if (!updated) throw new Error('Activity not found');
+    return updated;
+  }
+
+  async getTripCalendar(tripId) {
+    const numTripId = parseInt(tripId);
+    if (this.isLiveBackend && this.token) {
+      const res = await fetch(`${this.BASE_URL}/api/trips/${numTripId}/calendar`, {
+        headers: this.getAuthHeaders()
+      });
+      if (res.ok) return await res.json();
+      const data = await res.json();
+      throw new Error(data.detail || 'Unable to load trip calendar');
+    }
+
+    const trip = await this.getTrip(numTripId);
+    const starts = (trip.stops || []).map(s => s.start_date).filter(Boolean).sort();
+    const ends = (trip.stops || []).map(s => s.end_date).filter(Boolean).sort();
+    const start = trip.start_date || starts[0] || null;
+    const end = trip.end_date || ends[ends.length - 1] || start;
+    const days = [];
+
+    if (start && end) {
+      const first = new Date(start);
+      const last = new Date(end);
+      for (let d = new Date(first); d <= last; d = new Date(d.getTime() + 86400000)) {
+        const date = d.toISOString().split('T')[0];
+        const coveringStop = (trip.stops || []).find(stop =>
+          stop.start_date && stop.end_date && stop.start_date <= date && stop.end_date >= date
+        ) || (trip.stops || [])[0];
+        const items = [];
+        (trip.stops || []).forEach(stop => (stop.activities || []).forEach(a => {
+          const effectiveDate = a.scheduled_date || stop.start_date;
+          if (effectiveDate === date) {
+            items.push({
+              stop_activity_id: a.id,
+              activity_id: a.activity_id,
+              name: a.name,
+              city: stop.city?.name || "",
+              slot: a.slot || null,
+              price_per_person: a.price_per_person || 0,
+              num_people: a.num_people || 1
+            });
+          }
+        }));
+        days.push({
+          date,
+          city: coveringStop?.city?.name || null,
+          items
+        });
+      }
+    }
+
+    return {
+      trip_id: numTripId,
+      start_date: start,
+      end_date: end,
+      days
+    };
   }
 
   async removeStopActivity(stopActivityId) {

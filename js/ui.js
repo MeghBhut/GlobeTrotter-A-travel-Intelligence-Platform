@@ -152,6 +152,13 @@ class GlobeTrotterUIClass {
       case 'PLANNER_VIEW_MODE_CHANGED':
         this.renderPlanner();
         break;
+      case 'TRIP_CALENDAR_LOADING':
+      case 'TRIP_CALENDAR_LOADED':
+      case 'TRIP_CALENDAR_ERROR':
+      case 'TRIP_ACTIVITY_SCHEDULED':
+      case 'TRIP_ACTIVITY_RESCHEDULED':
+        this.renderDayScheduler(this.state.getState().plannerViewMode);
+        break;
       case 'TIMELINE_STATUS_CHANGED':
         this.renderTimelineTabs();
         this.renderSavedTrips();
@@ -899,37 +906,14 @@ class GlobeTrotterUIClass {
     const selectedActs = cityActs.filter(a => state.tripPlan.activityIds.includes(a.id));
 
     if (viewMode === 'calendar') {
-      // Timeline / Calendar Mode
-      let calHTML = `
-        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-      `;
-      for (let day = 1; day <= nights; day++) {
-        const daySlots = schedule[day] || { morning: null, afternoon: null, evening: null };
-        calHTML += `
-          <div class="surface-inset p-3.5 rounded-[var(--radius-card)] border border-[var(--line)] space-y-2">
-            <div class="flex justify-between items-center border-b border-[var(--line)] pb-1.5">
-              <span class="eyebrow">Day ${day}</span>
-              <span class="stat-mono text-[10px] text-dim">${this.formatStopDayDate(state.tripPlan.start_date, day)}</span>
-            </div>
-            <div class="space-y-1.5 text-xs">
-              <div class="p-1.5 rounded-[var(--radius-control)] bg-[var(--surface)]">
-                <span class="text-[9px] uppercase font-bold text-[var(--cyan)] block">AM:</span>
-                <span class="font-medium text-primary text-[11px] truncate block">${daySlots.morning ? (cityActs.find(a => a.id === parseInt(daySlots.morning))?.name || 'Assigned') : '— Free —'}</span>
-              </div>
-              <div class="p-1.5 rounded-[var(--radius-control)] bg-[var(--surface)]">
-                <span class="text-[9px] uppercase font-bold text-[var(--cyan)] block">AFT:</span>
-                <span class="font-medium text-primary text-[11px] truncate block">${daySlots.afternoon ? (cityActs.find(a => a.id === parseInt(daySlots.afternoon))?.name || 'Assigned') : '— Free —'}</span>
-              </div>
-              <div class="p-1.5 rounded-[var(--radius-control)] bg-[var(--surface)]">
-                <span class="text-[9px] uppercase font-bold text-[var(--cyan)] block">EVE:</span>
-                <span class="font-medium text-primary text-[11px] truncate block">${daySlots.evening ? (cityActs.find(a => a.id === parseInt(daySlots.evening))?.name || 'Assigned') : '— Free —'}</span>
-              </div>
-            </div>
-          </div>
-        `;
+      if (state.tripPlan.id) {
+        if (!state.tripCalendar && !state.calendarLoading && !state.calendarError) {
+          this.state.loadTripCalendar(state.tripPlan.id).catch(() => null);
+        }
+        this.renderServerCalendar(container, state);
+      } else {
+        this.renderClientCalendarFallback(container, state, cityActs);
       }
-      calHTML += `</div>`;
-      container.innerHTML = calHTML;
       return;
     }
 
@@ -986,10 +970,164 @@ class GlobeTrotterUIClass {
     container.innerHTML = html;
   }
 
+  renderServerCalendar(container, state) {
+    const calendar = state.tripCalendar;
+    const slotLabels = {
+      morning: 'Morning',
+      afternoon: 'Afternoon',
+      evening: 'Evening'
+    };
+
+    if (state.calendarLoading && !calendar) {
+      container.innerHTML = `
+        <div class="surface-inset p-6 rounded-[var(--radius-card)] text-center text-dim text-sm">
+          Loading calendar from GET /api/trips/${state.tripPlan.id}/calendar...
+        </div>
+      `;
+      return;
+    }
+
+    if (state.calendarError && !calendar) {
+      container.innerHTML = `
+        <div class="surface-inset p-6 rounded-[var(--radius-card)] text-center text-dim text-sm">
+          ${state.calendarError}
+        </div>
+      `;
+      return;
+    }
+
+    if (!calendar || !calendar.days || !calendar.days.length) {
+      container.innerHTML = `
+        <div class="surface-inset p-6 rounded-[var(--radius-card)] text-center text-dim text-sm">
+          No dated calendar entries yet. Add activities to your stops, then save or reload the trip.
+        </div>
+      `;
+      return;
+    }
+
+    const allDates = calendar.days.map(day => day.date);
+    container.innerHTML = `
+      <div class="flex items-center justify-between gap-3">
+        <span class="eyebrow">GET /api/trips/${calendar.trip_id}/calendar</span>
+        <button onclick="GlobeTrotterState.loadTripCalendar(${calendar.trip_id})" class="btn-secondary text-xs">
+          <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Refresh
+        </button>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+        ${calendar.days.map(day => {
+          const dayItems = day.items || [];
+          const city = CITIES_DATA.find(c => c.name === day.city);
+          const activityOptions = city
+            ? ACTIVITIES_DATA.filter(a => a.city_id === city.id)
+            : ACTIVITIES_DATA;
+          const grouped = {
+            morning: dayItems.filter(item => (item.slot || 'morning') === 'morning'),
+            afternoon: dayItems.filter(item => item.slot === 'afternoon'),
+            evening: dayItems.filter(item => item.slot === 'evening')
+          };
+
+          return `
+            <article class="surface p-4 rounded-[var(--radius-card)] border border-[var(--line)] space-y-3">
+              <div class="flex items-start justify-between gap-3 border-b border-[var(--line)] pb-2">
+                <div>
+                  <span class="eyebrow">${this.formatCalendarDate(day.date)}</span>
+                  <h4 class="text-sm font-bold text-primary">${day.city || 'Open day'}</h4>
+                </div>
+                <span class="chip text-[10px]">${dayItems.length ? `${dayItems.length} planned` : 'Free'}</span>
+              </div>
+
+              ${dayItems.length ? '' : '<p class="text-xs text-dim italic">Free</p>'}
+
+              <div class="space-y-2">
+                ${Object.entries(slotLabels).map(([slot, label]) => `
+                  <div class="surface-inset p-2.5 rounded-[var(--radius-control)] border border-[var(--line)] space-y-2">
+                    <div class="flex items-center justify-between gap-2">
+                      <span class="text-[10px] uppercase font-bold text-[var(--cyan)]">${label}</span>
+                      <span class="text-[10px] text-dim">${grouped[slot].length ? `${grouped[slot].length} item${grouped[slot].length > 1 ? 's' : ''}` : 'Free'}</span>
+                    </div>
+
+                    ${grouped[slot].map(item => `
+                      <div class="bg-[var(--surface)] rounded-[var(--radius-control)] p-2 text-xs space-y-2">
+                        <div class="flex items-start justify-between gap-2">
+                          <div>
+                            <span class="font-semibold text-primary block leading-tight">${item.name}</span>
+                            <span class="price text-[10px] text-dim">${this.planner.formatPrice((item.price_per_person || 0) * (item.num_people || 1), state.currency)} • ${item.num_people || 1} pax</span>
+                          </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                          <select onchange="GlobeTrotterApp.rescheduleCalendarActivity(${item.stop_activity_id}, this.value, '${item.slot || slot}')" class="select-control text-[11px] py-1">
+                            ${allDates.map(date => `<option value="${date}" ${date === day.date ? 'selected' : ''}>${this.formatCalendarDate(date)}</option>`).join('')}
+                          </select>
+                          <select onchange="GlobeTrotterApp.rescheduleCalendarActivity(${item.stop_activity_id}, '${day.date}', this.value)" class="select-control text-[11px] py-1">
+                            ${Object.entries(slotLabels).map(([slotKey, slotLabel]) => `<option value="${slotKey}" ${(item.slot || slot) === slotKey ? 'selected' : ''}>${slotLabel}</option>`).join('')}
+                          </select>
+                        </div>
+                      </div>
+                    `).join('')}
+
+                    <select onchange="GlobeTrotterApp.addActivityToCalendar('${day.date}', '${slot}', this.value); this.value='';" class="select-control w-full text-[11px] py-1">
+                      <option value="">+ Add activity to ${label}</option>
+                      ${activityOptions.map(a => `<option value="${a.id}">${a.name}</option>`).join('')}
+                    </select>
+                  </div>
+                `).join('')}
+              </div>
+            </article>
+          `;
+        }).join('')}
+      </div>
+    `;
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  renderClientCalendarFallback(container, state, cityActs) {
+    const nights = state.tripPlan.nights;
+    const schedule = state.tripPlan.daySchedule;
+    let calHTML = `
+      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+    `;
+    for (let day = 1; day <= nights; day++) {
+      const daySlots = schedule[day] || { morning: null, afternoon: null, evening: null };
+      calHTML += `
+        <div class="surface-inset p-3.5 rounded-[var(--radius-card)] border border-[var(--line)] space-y-2">
+          <div class="flex justify-between items-center border-b border-[var(--line)] pb-1.5">
+            <span class="eyebrow">${this.formatCalendarDate(this.dateForDay(state.tripPlan.start_date, day))}</span>
+            <span class="stat-mono text-[10px] text-dim">Draft</span>
+          </div>
+          <div class="space-y-1.5 text-xs">
+            ${['morning', 'afternoon', 'evening'].map(slot => `
+              <div class="p-1.5 rounded-[var(--radius-control)] bg-[var(--surface)]">
+                <span class="text-[9px] uppercase font-bold text-[var(--cyan)] block">${slot}:</span>
+                <span class="font-medium text-primary text-[11px] truncate block">${daySlots[slot] ? (cityActs.find(a => a.id === parseInt(daySlots[slot]))?.name || 'Assigned') : 'Free'}</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+    calHTML += `</div>`;
+    container.innerHTML = calHTML;
+  }
+
   formatStopDayDate(startDate, day) {
     if (!startDate) return `Day ${day}`;
     const date = new Date(new Date(startDate).getTime() + (day - 1) * 86400000);
     return date.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
+  }
+
+  dateForDay(startDate, day) {
+    if (!startDate) return '';
+    return new Date(new Date(startDate).getTime() + (day - 1) * 86400000).toISOString().split('T')[0];
+  }
+
+  formatCalendarDate(dateString) {
+    if (!dateString) return 'Open date';
+    const date = new Date(`${dateString}T00:00:00`);
+    return date.toLocaleDateString('en-IN', {
+      weekday: 'short',
+      day: '2-digit',
+      month: 'short'
+    });
   }
 
   renderBudgetSidebar() {

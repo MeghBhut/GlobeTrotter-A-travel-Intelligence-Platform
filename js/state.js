@@ -92,6 +92,9 @@ class GlobeTrotterStateClass {
       // Saved trips from API
       savedTrips: [],
       backendBudget: null,
+      tripCalendar: null,
+      calendarLoading: false,
+      calendarError: null,
       communityTrips: [],
       friends: [],
       friendRequests: [],
@@ -220,6 +223,9 @@ class GlobeTrotterStateClass {
 
   setPlannerViewMode(mode) {
     this.state.plannerViewMode = mode;
+    if (mode === 'calendar' && this.state.tripPlan.id) {
+      this.loadTripCalendar(this.state.tripPlan.id);
+    }
     this.notify('PLANNER_VIEW_MODE_CHANGED', mode);
   }
 
@@ -597,6 +603,23 @@ class GlobeTrotterStateClass {
     this.notify('SCHEDULE_UPDATED', this.state.tripPlan.daySchedule);
   }
 
+  getScheduledInfoForPlanStop(planStop, activityId) {
+    const schedule = planStop.daySchedule || {};
+    for (const [dayKey, slots] of Object.entries(schedule)) {
+      for (const slot of ['morning', 'afternoon', 'evening']) {
+        if (parseInt(slots?.[slot]) === parseInt(activityId)) {
+          const base = planStop.start_date ? new Date(planStop.start_date) : null;
+          const dayOffset = Math.max(0, (parseInt(dayKey) || 1) - 1);
+          const scheduledDate = base
+            ? new Date(base.getTime() + dayOffset * 86400000).toISOString().split('T')[0]
+            : null;
+          return { scheduled_date: scheduledDate, slot };
+        }
+      }
+    }
+    return { scheduled_date: planStop.start_date || null, slot: null };
+  }
+
   // ==================== TRIPS API SYNC ====================
 
   async loadSavedTrips(status = '') {
@@ -661,9 +684,12 @@ class GlobeTrotterStateClass {
       }
 
       for (const actId of planStop.activityIds || []) {
+        const scheduled = this.getScheduledInfoForPlanStop(planStop, actId);
         await this.api.addStopActivity(savedStop.id, {
           activity_id: actId,
-          num_people: numPeople
+          num_people: numPeople,
+          scheduled_date: scheduled.scheduled_date,
+          slot: scheduled.slot
         });
       }
     }
@@ -749,6 +775,8 @@ class GlobeTrotterStateClass {
         console.warn('Backend budget fetch fallback');
       }
 
+      await this.loadTripCalendar(trip.id).catch(() => null);
+
       this.notify('TRIP_LOADED', trip);
       return true;
     } catch (e) {
@@ -789,6 +817,67 @@ class GlobeTrotterStateClass {
       this.state.publicTrip = null;
       this.notify('PUBLIC_TRIP_ERROR', e.message);
     }
+  }
+
+  async loadTripCalendar(tripId = null) {
+    const id = tripId || this.state.tripPlan.id;
+    if (!id) {
+      this.state.tripCalendar = null;
+      this.state.calendarError = null;
+      this.notify('TRIP_CALENDAR_LOADED', null);
+      return null;
+    }
+
+    this.state.calendarLoading = true;
+    this.state.calendarError = null;
+    this.notify('TRIP_CALENDAR_LOADING', true);
+    try {
+      this.state.tripCalendar = await this.api.getTripCalendar(id);
+      this.notify('TRIP_CALENDAR_LOADED', this.state.tripCalendar);
+      return this.state.tripCalendar;
+    } catch (e) {
+      this.state.calendarError = e.message;
+      this.notify('TRIP_CALENDAR_ERROR', e.message);
+      throw e;
+    } finally {
+      this.state.calendarLoading = false;
+      this.notify('TRIP_CALENDAR_LOADING', false);
+    }
+  }
+
+  findStopForDate(date, cityName = '') {
+    const stops = this.state.tripPlan.stops || [];
+    return stops.find(stop =>
+      stop.start_date && stop.end_date && stop.start_date <= date && stop.end_date >= date
+    ) || stops.find(stop => {
+      const city = CITIES_DATA.find(c => c.id === stop.cityId);
+      return cityName && city?.name === cityName;
+    }) || stops[0] || null;
+  }
+
+  async addActivityToCalendar(date, slot, activityId) {
+    const stop = this.findStopForDate(date);
+    if (!stop?.id) throw new Error('Save or load this trip before adding calendar activities');
+    const numPeople = (this.state.tripPlan.adults || 1) + (this.state.tripPlan.children || 0);
+    const created = await this.api.addStopActivity(stop.id, {
+      activity_id: parseInt(activityId),
+      num_people: numPeople,
+      scheduled_date: date,
+      slot
+    });
+    await this.loadTripCalendar(this.state.tripPlan.id);
+    this.notify('TRIP_ACTIVITY_SCHEDULED', created);
+    return created;
+  }
+
+  async rescheduleActivity(stopActivityId, scheduledDate, slot) {
+    const updated = await this.api.updateStopActivity(stopActivityId, {
+      scheduled_date: scheduledDate,
+      slot
+    });
+    await this.loadTripCalendar(this.state.tripPlan.id);
+    this.notify('TRIP_ACTIVITY_RESCHEDULED', updated);
+    return updated;
   }
 
   async loadCommunityTrips() {
