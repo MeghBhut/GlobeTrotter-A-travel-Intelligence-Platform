@@ -467,3 +467,55 @@ Response `201`:
 | `GET` | `/api/community/trips` | Public trips feed (with owner) |
 | `POST` | `/api/trips/{id}/clone` | Copy a trip into my account |
 | `POST`/`PUT` | `/api/trips` · `/api/trips/{id}` | Now accept `visibility` |
+
+---
+
+# ==================== v4 ADDITION (Calendar view — dates + daily schedule) ====================
+
+Adds real per-date scheduling so a calendar can show *what happens on each date*.
+
+## v4.1 Schedule an activity on a date/slot
+Stop-activities now carry an optional **`scheduled_date`** and **`slot`**
+("morning" | "afternoon" | "evening"). Set them when adding:
+```json
+POST /api/stops/{stop_id}/activities
+{ "activity_id": 103, "num_people": 2, "scheduled_date": "2026-09-21", "slot": "morning" }
+```
+…or change them later:
+```json
+PUT /api/stop-activities/{item_id}
+{ "scheduled_date": "2026-09-22", "slot": "afternoon" }   // any subset; also num_people
+```
+Every stop-activity object now includes `scheduled_date` and `slot` (may be null).
+
+## v4.2 Calendar view
+### `GET /api/trips/{trip_id}/calendar`
+Returns the trip's activities grouped by real date — one entry per day across the
+trip span. Works for any trip you can view (yours, public, or a friend's).
+```json
+{
+  "trip_id": 12,
+  "start_date": "2026-09-21",
+  "end_date": "2026-09-23",
+  "days": [
+    {
+      "date": "2026-09-21",
+      "city": "Mumbai",
+      "items": [
+        { "stop_activity_id": 5, "activity_id": 103, "name": "Elephanta Caves Ferry & Island Tour",
+          "city": "Mumbai", "slot": "morning", "price_per_person": 260, "num_people": 2 }
+      ]
+    },
+    { "date": "2026-09-22", "city": "Mumbai", "items": [] }
+  ]
+}
+```
+- Activities with no `scheduled_date` default to their stop's start date, so the
+  calendar is never empty.
+- `city` per day = the stop whose date range covers that day.
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| `GET` | `/api/trips/{id}/calendar` | Activities grouped by date (for the calendar view) |
+| `PUT` | `/api/stop-activities/{id}` | Reschedule an activity (date / slot / num_people) |
+| `POST` | `/api/stops/{id}/activities` | Now accepts `scheduled_date` + `slot` |

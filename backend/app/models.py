@@ -152,6 +152,8 @@ class StopActivity(Base):
     stop_id = Column(Integer, ForeignKey("trip_stops.id"), nullable=False, index=True)
     activity_id = Column(Integer, ForeignKey("activities.id"), nullable=False)
     num_people = Column(Integer, default=1)
+    scheduled_date = Column(Date, nullable=True)  # which calendar day this activity is on
+    slot = Column(String, nullable=True)          # morning | afternoon | evening (optional)
 
     stop = relationship("TripStop", back_populates="activities")
     activity = relationship("Activity")

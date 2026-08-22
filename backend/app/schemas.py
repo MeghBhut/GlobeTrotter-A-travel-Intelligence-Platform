@@ -103,6 +103,14 @@ class TripOut(BaseModel):
 class StopActivityCreate(BaseModel):
     activity_id: int
     num_people: int = 1
+    scheduled_date: Optional[date] = None
+    slot: Optional[str] = None  # morning | afternoon | evening
+
+
+class StopActivityUpdate(BaseModel):
+    num_people: Optional[int] = None
+    scheduled_date: Optional[date] = None
+    slot: Optional[str] = None
 
 
 class StopActivityOut(BaseModel):
@@ -112,6 +120,8 @@ class StopActivityOut(BaseModel):
     name: str
     price_per_person: int
     num_people: int
+    scheduled_date: Optional[date] = None
+    slot: Optional[str] = None
 
 
 class StopHotelCreate(BaseModel):
@@ -248,3 +258,27 @@ class BudgetOut(BaseModel):
     breakdown: BudgetBreakdown
     per_day: List[BudgetDay] = []
     average_per_day: int
+
+
+# ---------- calendar ----------
+class CalendarItem(BaseModel):
+    stop_activity_id: int
+    activity_id: int
+    name: str
+    city: str
+    slot: Optional[str] = None
+    price_per_person: int
+    num_people: int
+
+
+class CalendarDay(BaseModel):
+    date: date
+    city: Optional[str] = None
+    items: List[CalendarItem] = []
+
+
+class CalendarOut(BaseModel):
+    trip_id: int
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    days: List[CalendarDay] = []

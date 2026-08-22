@@ -240,8 +240,28 @@ def add_stop_activity(
         stop_id=stop.id,
         activity_id=payload.activity_id,
         num_people=payload.num_people,
+        scheduled_date=payload.scheduled_date,
+        slot=payload.slot,
     )
     db.add(line)
+    db.commit()
+    db.refresh(line)
+    return line
+
+
+@router.put("/stop-activities/{item_id}", response_model=schemas.StopActivityOut)
+def update_stop_activity(
+    item_id: int,
+    payload: schemas.StopActivityUpdate,
+    user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Reschedule an activity (its date / slot) or change the number of people."""
+    line = db.query(models.StopActivity).filter(models.StopActivity.id == item_id).first()
+    if line is None or line.stop.trip.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Item not found")
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(line, field, value)
     db.commit()
     db.refresh(line)
     return line

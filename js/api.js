@@ -6,7 +6,10 @@
 
 class GlobeTrotterAPI {
   constructor() {
-    this.BASE_URL = 'http://localhost:8000';
+    // Talk to the backend on the SAME host that served this page, so opening
+    // the app via a LAN IP (e.g. http://10.134.48.251:3000) uses that machine's
+    // backend (http://10.134.48.251:8000) instead of each laptop's own localhost.
+    this.BASE_URL = `${location.protocol}//${location.hostname || 'localhost'}:8000`;
     this.TOKEN_STORAGE_KEY = 'globetrotter_auth_token_v1';
     this.USER_STORAGE_KEY = 'globetrotter_auth_user_v1';
     this.MOCK_TRIPS_KEY = 'globetrotter_mock_trips_v1';

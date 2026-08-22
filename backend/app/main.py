@@ -9,7 +9,9 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .database import Base, engine, SessionLocal
 from .seed import seed
-from .routers import cities, users, trips, budget, public, friends, community
+from .routers import (
+    cities, users, trips, budget, public, friends, community, calendar,
+)
 
 
 def _migrate() -> None:
@@ -29,6 +31,11 @@ def _migrate() -> None:
             conn.exec_driver_sql(
                 "UPDATE trips SET visibility='public' WHERE is_public=1"
             )
+        sa_cols = [row[1] for row in conn.exec_driver_sql("PRAGMA table_info(stop_activities)")]
+        if "scheduled_date" not in sa_cols:
+            conn.exec_driver_sql("ALTER TABLE stop_activities ADD COLUMN scheduled_date DATE")
+        if "slot" not in sa_cols:
+            conn.exec_driver_sql("ALTER TABLE stop_activities ADD COLUMN slot VARCHAR")
 
 
 # Create tables, run migrations, and load the seed catalog on startup.
@@ -62,6 +69,7 @@ app.include_router(budget.router)
 app.include_router(public.router)
 app.include_router(friends.router)
 app.include_router(community.router)
+app.include_router(calendar.router)
 
 
 @app.get("/", tags=["health"])
