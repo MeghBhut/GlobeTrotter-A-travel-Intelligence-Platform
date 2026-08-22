@@ -11,8 +11,21 @@ from .database import Base, engine, SessionLocal
 from .seed import seed
 from .routers import cities, users, trips, budget, public
 
-# Create tables and load the seed catalog on startup.
+
+def _migrate() -> None:
+    """Tiny additive migration: add columns that create_all() can't add to an
+    already-existing table. Safe to run every startup."""
+    with engine.begin() as conn:
+        cols = [row[1] for row in conn.exec_driver_sql("PRAGMA table_info(trips)")]
+        if "daily_meal_estimate" not in cols:
+            conn.exec_driver_sql(
+                "ALTER TABLE trips ADD COLUMN daily_meal_estimate INTEGER DEFAULT 0"
+            )
+
+
+# Create tables, run migrations, and load the seed catalog on startup.
 Base.metadata.create_all(bind=engine)
+_migrate()
 _db = SessionLocal()
 try:
     seed(_db)

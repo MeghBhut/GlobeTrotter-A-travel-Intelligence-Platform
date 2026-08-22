@@ -61,6 +61,7 @@ class TripCreate(BaseModel):
     description: Optional[str] = ""
     start_date: Optional[date] = None
     end_date: Optional[date] = None
+    daily_meal_estimate: Optional[int] = 0
 
 
 class TripUpdate(BaseModel):
@@ -69,6 +70,7 @@ class TripUpdate(BaseModel):
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     is_public: Optional[bool] = None
+    daily_meal_estimate: Optional[int] = None
 
 
 class TripOut(BaseModel):
@@ -81,6 +83,7 @@ class TripOut(BaseModel):
     is_public: bool
     share_slug: Optional[str] = None
     cover_photo_url: Optional[str] = None
+    daily_meal_estimate: int = 0
     destination_count: int
 
 
@@ -97,6 +100,21 @@ class StopActivityOut(BaseModel):
     name: str
     price_per_person: int
     num_people: int
+
+
+class StopHotelCreate(BaseModel):
+    hotel_id: int
+    nights: Optional[int] = None  # defaults to the stop's night count if omitted
+
+
+class StopHotelOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    hotel_id: int
+    name: str
+    tier: str
+    price_per_night: int
+    nights: int
 
 
 class StopCreate(BaseModel):
@@ -119,6 +137,39 @@ class StopOut(BaseModel):
     end_date: Optional[date] = None
     order_index: int
     activities: List[StopActivityOut] = []
+    hotels: List[StopHotelOut] = []
+
+
+# ---------- travel legs (city -> city) ----------
+class TripLegCreate(BaseModel):
+    from_city_id: int
+    to_city_id: int
+    mode: str = "flight"
+    cost: int = 0
+    depart_date: Optional[date] = None
+    duration_hours: Optional[int] = None
+
+
+class TripLegUpdate(BaseModel):
+    from_city_id: Optional[int] = None
+    to_city_id: Optional[int] = None
+    mode: Optional[str] = None
+    cost: Optional[int] = None
+    depart_date: Optional[date] = None
+    duration_hours: Optional[int] = None
+    order_index: Optional[int] = None
+
+
+class TripLegOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    from_city: CityOut
+    to_city: CityOut
+    mode: str
+    cost: int
+    depart_date: Optional[date] = None
+    duration_hours: Optional[int] = None
+    order_index: int
 
 
 class TripDetailOut(BaseModel):
@@ -131,7 +182,9 @@ class TripDetailOut(BaseModel):
     is_public: bool
     share_slug: Optional[str] = None
     cover_photo_url: Optional[str] = None
+    daily_meal_estimate: int = 0
     stops: List[StopOut] = []
+    legs: List[TripLegOut] = []
 
 
 # ---------- budget ----------

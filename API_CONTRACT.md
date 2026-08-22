@@ -276,3 +276,106 @@ Returns aggregated financial calculation computed from the trip's stops, hotels,
 
 ### `GET /api/public/{share_slug}` (No Auth required)
 Returns the public read-only itinerary view for any trip with `is_public: true`.
+
+---
+
+# ==================== v2 ADDITIONS (Multi-city travel, hotels, full budget) ====================
+
+v2 extends the backend so trips can span **multiple cities with travel between them**,
+attach **hotels**, and produce a **complete budget** (activities + hotels + transport + meals).
+All v1 endpoints are unchanged; the additions below are new or extend existing shapes.
+
+## v2.1 Trip fields — new optional field
+
+`POST /api/trips` and `PUT /api/trips/{id}` now accept **`daily_meal_estimate`** (integer, INR/day, default 0).
+It appears on every trip object and drives the `meals` budget line.
+
+```json
+{ "name": "Rajasthan Loop", "start_date": "2026-09-01", "end_date": "2026-09-05",
+  "description": "multi-city", "daily_meal_estimate": 500 }
+```
+
+## v2.2 Multi-city itinerary
+
+Already supported: a trip has many **stops** (`POST /api/trips/{id}/stops`), each with a
+city and dates, ordered by `order_index`. Reorder with `PUT /api/stops/{id}`
+(send `order_index`). `GET /api/trips/{id}` returns all stops in order.
+
+## v2.3 Hotels inside a stop
+
+### `POST /api/stops/{stop_id}/hotels`
+```json
+{ "hotel_id": 3001, "nights": 2 }
+```
+`nights` is optional — if omitted, the backend uses the stop's own night count
+(from its start/end dates). Response `201`:
+```json
+{ "id": 7, "hotel_id": 3001, "name": "Hotel Pearl Palace", "tier": "Heritage Bud.",
+  "price_per_night": 1800, "nights": 2 }
+```
+
+### `DELETE /api/stop-hotels/{item_id}` → `204`
+
+Each stop object (inside `GET /api/trips/{id}`) now also carries a `hotels` array in
+the same shape as above, alongside its existing `activities` array.
+
+## v2.4 Travel legs (city → city)
+
+A leg is the journey **between two cities** — this is the "travelling" part of a plan.
+
+### `POST /api/trips/{trip_id}/legs`
+```json
+{ "from_city_id": 3, "to_city_id": 6, "mode": "car", "cost": 1500,
+  "depart_date": "2026-09-03", "duration_hours": 6 }
+```
+`mode` is a free string (`flight` / `train` / `bus` / `car` / `ferry`). Response `201`:
+```json
+{
+  "id": 2,
+  "from_city": { "id": 3, "name": "Jaipur", "state": "Rajasthan", "country": "India" },
+  "to_city":   { "id": 6, "name": "Udaipur", "state": "Rajasthan", "country": "India" },
+  "mode": "car", "cost": 1500, "depart_date": "2026-09-03",
+  "duration_hours": 6, "order_index": 0
+}
+```
+
+### `PUT /api/legs/{leg_id}` → update any field (mode, cost, dates, cities, order_index). Returns the leg.
+### `DELETE /api/legs/{leg_id}` → `204`
+
+`GET /api/trips/{id}` and `GET /api/public/{slug}` now include a **`legs`** array
+(list of the objects above) next to `stops`.
+
+## v2.5 Full budget
+
+`GET /api/trips/{id}/budget` now fills in every line:
+
+```json
+{
+  "trip_id": 12,
+  "currency": "INR",
+  "total": 15800,
+  "breakdown": {
+    "activities": 3200,
+    "hotels": 8600,
+    "transport": 1500,
+    "meals": 2500
+  },
+  "per_day": [ { "date": "2026-09-01", "amount": 3350 } ],
+  "average_per_day": 3160
+}
+```
+- **activities** = Σ (activity price_per_person × num_people) across all stops
+- **hotels** = Σ (hotel price_per_night × nights) across all stops
+- **transport** = Σ (leg cost) across all legs
+- **meals** = `daily_meal_estimate` × number of trip days
+
+## v2.6 New/updated endpoint summary
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| `POST` | `/api/stops/{stop_id}/hotels` | Attach a hotel (with nights) to a stop |
+| `DELETE` | `/api/stop-hotels/{item_id}` | Remove a hotel from a stop |
+| `POST` | `/api/trips/{trip_id}/legs` | Add a travel leg between two cities |
+| `PUT` | `/api/legs/{leg_id}` | Update a travel leg |
+| `DELETE` | `/api/legs/{leg_id}` | Remove a travel leg |
+| `POST`/`PUT` | `/api/trips` · `/api/trips/{id}` | Now accept `daily_meal_estimate` |

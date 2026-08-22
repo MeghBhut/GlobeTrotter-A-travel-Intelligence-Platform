@@ -123,3 +123,27 @@ These map to the original 12 screens; build/finish them in v2:
   and is visible from `GET /api/trips`).
 - The **public link** page renders a real shared trip from `/api/public/{slug}`.
 - The badge no longer errors when clicked mid-load.
+
+---
+
+## 6. Multi-city travel & full budget (backend is READY — build the UI)
+
+The backend now fully supports multi-city trips with travel and complete costs.
+No more backend work needed for these — wire the UI to the endpoints (see
+`API_CONTRACT.md` → "v2 ADDITIONS"):
+
+- [ ] **Multi-city planner.** Let a trip hold several cities: use
+  `POST /api/trips/{id}/stops` per city, show them in order, and allow reorder via
+  `PUT /api/stops/{id}` (`order_index`). Stop treating the planner as single-city.
+- [ ] **Travelling between cities.** Add a "travel leg" UI between stops:
+  `POST /api/trips/{id}/legs` with `from_city_id`, `to_city_id`, `mode`
+  (flight/train/bus/car/ferry), `cost`, `depart_date`, `duration_hours`.
+- [ ] **Hotels per stop.** `POST /api/stops/{stop_id}/hotels` (`hotel_id`, optional
+  `nights`); list from `GET /api/cities/{id}/hotels`.
+- [ ] **Meals.** Add a `daily_meal_estimate` field on the trip form
+  (`POST`/`PUT /api/trips`).
+- [ ] **Full budget breakdown.** `GET /api/trips/{id}/budget` now returns
+  `activities + hotels + transport + meals`, plus a `per_day` series — chart all four.
+- [ ] **Compare destinations — make the cities selectable.** The compare view has
+  fixed cities; add a city picker backed by `GET /api/cities` and pull each city's
+  `activities`/`hotels` for side-by-side comparison. (No backend change needed.)
